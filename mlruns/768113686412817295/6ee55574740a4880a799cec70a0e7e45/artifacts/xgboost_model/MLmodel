@@ -1,0 +1,38 @@
+artifact_path: xgboost_model
+flavors:
+  python_function:
+    data: model.xgb
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.11.11
+  xgboost:
+    code: null
+    data: model.xgb
+    model_class: xgboost.sklearn.XGBClassifier
+    model_format: xgb
+    xgb_version: 2.1.4
+is_signature_from_type_hint: false
+mlflow_version: 2.21.3
+model_size_bytes: 565416
+model_uuid: 658e743f737449bc8251dc9d90e01c1b
+prompts: null
+run_id: 6ee55574740a4880a799cec70a0e7e45
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "double", "name": "NVDA_Close", "required": true}, {"type": "double",
+    "name": "GSPC_Close", "required": true}, {"type": "long", "name": "NVDA_Volume",
+    "required": true}, {"type": "long", "name": "GSPC_Volume", "required": true},
+    {"type": "double", "name": "NVDA_Return", "required": true}, {"type": "double",
+    "name": "GSPC_Return", "required": true}, {"type": "double", "name": "NVDA_RollingVol",
+    "required": true}, {"type": "double", "name": "GSPC_RollingVol", "required": true},
+    {"type": "double", "name": "NVDA_Return_lag1", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-04-07 23:06:54.649031'
