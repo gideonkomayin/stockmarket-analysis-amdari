@@ -163,7 +163,7 @@ elif section == "Model Forecast":
 
         with col2:
             st.subheader("Model Performance")
-            model_key = f"{model_family}_{model_version}".replace(" ", "_").title()
+            model_key = f"{model_family}_{model_version}".replace(" ", "_")
             metrics = get_metrics(model_key)
 
             if metrics:
