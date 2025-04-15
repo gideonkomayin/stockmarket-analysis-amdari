@@ -27,27 +27,26 @@ client = MlflowClient()
 @st.cache_data
 def load_data():
     try:
+        # Load stock data with Date as index
         stock = pd.read_csv("nvidia_stock_data.csv", parse_dates=['Date'], index_col='Date')
-        financials = pd.read_csv("stock_financials.csv")
         
-        # Convert Year to datetime if it exists as column
-        if 'Year' in financials.columns:
-            financials['Date'] = pd.to_datetime(financials['Year'], format='%Y')
-            financials.set_index('Date', inplace=True)
-        # If Year is already the index
-        elif financials.index.name == 'Year':
-            financials.index = pd.to_datetime(financials.index, format='%Y')
-            financials.index.name = 'Date'
-            
+        # Load financials — 'Year' is already the index
+        financials = pd.read_csv("stock_financials.csv", index_col='Year')
+        
+        # Convert index from Year (int or string) to datetime for consistent plotting
+        financials.index = pd.to_datetime(financials.index, format='%Y')
+        financials.index.name = 'Date'  # Rename index to 'Date' to match rest of app
+
         return stock, financials
-        
+
     except Exception as e:
         st.error(f"""
-        Data loading failed. Please check:
-        1. Files exist in correct location
-        2. Stock data has 'Date' column
-        3. Financials has 'Year' column or index
-        Error: {str(e)}
+        ❌ Data loading failed. Please check:
+        • 'nvidia_stock_data.csv' has a 'Date' column
+        • 'stock_financials.csv' has 'Year' as the index
+        • Files exist in the correct location
+        
+Error: {str(e)}
         """)
         return None, None
 
