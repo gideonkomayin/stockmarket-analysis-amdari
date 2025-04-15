@@ -1,0 +1,14 @@
+aliases: []
+creation_timestamp: 1744137731723
+current_stage: None
+description: null
+last_updated_timestamp: 1744137731723
+name: XGBoost_Stock_Predictor_nf
+run_id: 018656ceaa7a4829a25a97c95da0ab3c
+run_link: null
+source: /content/drive/MyDrive/Colab Notebooks/stockmarket-analysis/mlruns/768113686412817295/018656ceaa7a4829a25a97c95da0ab3c/artifacts/xgboost_model_nf
+status: READY
+status_message: null
+storage_location: /content/drive/MyDrive/Colab Notebooks/stockmarket-analysis/mlruns/768113686412817295/018656ceaa7a4829a25a97c95da0ab3c/artifacts/xgboost_model_nf
+user_id: null
+version: 1

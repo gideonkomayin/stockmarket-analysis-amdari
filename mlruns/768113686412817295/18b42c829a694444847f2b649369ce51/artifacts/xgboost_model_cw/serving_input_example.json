@@ -1,0 +1,28 @@
+{
+  "dataframe_split": {
+    "columns": [
+      "NVDA_Close",
+      "GSPC_Close",
+      "NVDA_Volume",
+      "GSPC_Volume",
+      "NVDA_Return",
+      "GSPC_Return",
+      "NVDA_RollingVol",
+      "GSPC_RollingVol",
+      "NVDA_Return_lag1"
+    ],
+    "data": [
+      [
+        0.430073,
+        1136.52002,
+        728648000,
+        2491020000,
+        0.014602,
+        0.003116,
+        0.023311,
+        0.007938,
+        NaN
+      ]
+    ]
+  }
+}
