@@ -20,20 +20,38 @@ st.set_page_config(
 
 # Set MLflow tracking
 mlruns_path = "./mlruns"
+os.makedirs(mlruns_path, exist_ok=True)
 mlflow.set_tracking_uri(mlruns_path)
 client = MlflowClient()
 
-# Load data
 @st.cache_data
 def load_data():
     try:
-        stock = pd.read_csv("nvidia_stock_data.csv", parse_dates=['Date'])
-        financials = pd.read_csv("stock_financials.csv", parse_dates=['Date'])
+        stock = pd.read_csv("nvidia_stock_data.csv", parse_dates=['Date'], index_col='Date')
+        financials = pd.read_csv("stock_financials.csv")
+        
+        # Convert Year to datetime if it exists as column
+        if 'Year' in financials.columns:
+            financials['Date'] = pd.to_datetime(financials['Year'], format='%Y')
+            financials.set_index('Date', inplace=True)
+        # If Year is already the index
+        elif financials.index.name == 'Year':
+            financials.index = pd.to_datetime(financials.index, format='%Y')
+            financials.index.name = 'Date'
+            
         return stock, financials
-    except FileNotFoundError as e:
-        st.error(f"Error loading data: {e}")
+        
+    except Exception as e:
+        st.error(f"""
+        Data loading failed. Please check:
+        1. Files exist in correct location
+        2. Stock data has 'Date' column
+        3. Financials has 'Year' column or index
+        Error: {str(e)}
+        """)
         return None, None
 
+# Load data right away
 df_stock, df_financials = load_data()
 
 # Model configuration
@@ -73,6 +91,19 @@ MODELS = {
         }
     }
 }
+
+@st.cache_data
+def check_model_files():
+    missing = []
+    for model_family in MODELS.values():
+        for version in model_family.values():
+            for file_type, path in version.items():
+                if file_type in ['image', 'model', 'confusion'] and not os.path.exists(path):
+                    missing.append(path)
+    return missing
+
+if missing_files := check_model_files():
+    st.warning(f"Missing model files: {', '.join(missing_files)}")
 
 # Get MLflow metrics
 @st.cache_data
@@ -122,21 +153,23 @@ selected_model = MODELS[model_family][model_version] if section != "Financial Ov
 if section == "Financial Overview":
     st.header("Financial Performance")
 
-    # Date range selector
     if df_financials is not None:
-        min_date = df_financials['Date'].min().date()
-        max_date = df_financials['Date'].max().date()
-        date_range = st.slider(
-            "Select Date Range",
-            min_value=min_date,
-            max_value=max_date,
-            value=(min_date, max_date)
+      with st.spinner("Processing Financial data..."):
+        # Get min/max years for slider
+        years = df_financials.index.year.unique()
+        min_year, max_year = min(years), max(years)
+        
+        year_range = st.slider(
+            "Select Year Range",
+            min_value=min_year,
+            max_value=max_year,
+            value=(min_year, max_year)
         )
 
         # Filter data
         filtered_fin = df_financials[
-            (df_financials['Date'].dt.date >= date_range[0]) &
-            (df_financials['Date'].dt.date <= date_range[1])
+            (df_financials.index.year >= year_range[0]) & 
+            (df_financials.index.year <= year_range[1])
         ]
 
         # Financial metrics selector
@@ -218,14 +251,18 @@ elif section == "Model Forecast":
                 max_value=datetime.today() + timedelta(days=365)
             )
 
-            if st.button("Predict Direction"):
+            if st.button("Predict Direction", disabled=True, 
+            help="Prediction functionality coming soon - will use model from selected_model['model']"):
                 # --- INCOMPLETENESS: Add your prediction logic here ---
                 # 1. Load the model using selected_model["model"] (e.g., with joblib.load or load_model)
                 # 2. Prepare the input features for the selected pred_date
                 # 3. Make the prediction using the loaded model
                 # 4. Store the prediction in the 'prediction' variable
-                prediction = 1  # Placeholder - replace with actual model prediction
-                st.success(f"Predicted direction for {pred_date}: {'↑ Up' if prediction == 1 else '↓ Down'}")
+                # Future implementation:
+                # model = joblib.load(selected_model['model'])
+                # prediction = model.predict(...)
+                # st.success(f"Predicted direction for {pred_date}: {'↑ Up' if prediction == 1 else '↓ Down'}")
+                pass
 
             # Export prediction
             if st.button("Export Prediction"):
@@ -245,6 +282,7 @@ else:  # Model Comparison
     )
 
     if models_to_compare:
+      with st.spinner("Comparing models..."):
         # Get metrics for all selected models
         comparison_data = []
         for model_name in models_to_compare:
