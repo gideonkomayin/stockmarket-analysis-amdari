@@ -110,7 +110,7 @@ def get_metrics(model_name):
     try:
         experiment = client.get_experiment_by_name("NVDA_Stock_Trend_Forecasting")
         if experiment:
-            runs = client.search_runs(experiment_ids=[experiment.experiment_id], filter=f"tags.mlflow.runName = '{model_name}'")
+            runs = client.search_runs(experiment_ids=[experiment.experiment_id], filter_string=f"tags.mlflow.runName = '{model_name}'")
             if runs:
                 return {
                     "params": runs[0].data.params,
@@ -210,7 +210,7 @@ elif section == "Model Forecast":
                     st.image(
                         Image.open(image_path),
                         caption=f"{model_family} Forecast",
-                        use_column_width=True
+                        use_container_width=True
                     )
                 except FileNotFoundError:
                     st.error(f"Image file not found: {image_path}")
@@ -222,7 +222,7 @@ elif section == "Model Forecast":
                     st.image(
                         Image.open(confusion_path),
                         caption="Confusion Matrix",
-                        use_column_width=True
+                        use_container_width=True
                     )
                 except FileNotFoundError:
                     st.error(f"Confusion matrix file not found: {confusion_path}")
