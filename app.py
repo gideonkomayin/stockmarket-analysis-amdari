@@ -255,8 +255,8 @@ else:  # Model Comparison
             st.warning("No metrics available for selected models")
 
 # Add some styling
-st.markdown("
-<style>
+
+st.markdown("<style>
     .stMetric {
         border: 1px solid #e1e4e8;
         border-radius: 0.5rem;
@@ -271,7 +271,6 @@ st.markdown("
         font-size: 1.5rem !important;
     }
 </style>
-", unsafe_allow_html=True)
+", unsafe_allow_html=True")
 
-st.markdown("---")
 st.caption("Built by Bamise - Omatseye - Gideon • Powered by Streamlit")
