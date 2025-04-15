@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # Set MLflow tracking
-mlruns_path = "/content/drive/MyDrive/Colab Notebooks/stockmarket-analysis/mlruns"
+mlruns_path = "/tmp/mlruns"
 mlflow.set_tracking_uri(mlruns_path)
 client = MlflowClient()
 
