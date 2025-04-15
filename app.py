@@ -171,6 +171,8 @@ if section == "Financial Overview":
             (df_financials.index.year <= year_range[1])
         ]
 
+        filtered_fin = filtered_fin.reset_index()
+
         # Financial metrics selector
         metrics = st.multiselect(
             "Select Metrics to Display",
