@@ -69,10 +69,16 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             st.error(f"❌ Model file not found at: {model_path}")
             return None
 
-        days_from_now = (pred_date - stock_df.index.max().date()).days
+        # 🔁 Use dataset's last date, not today's system date
+        last_available_date = stock_df.index.max().date()
+        days_from_now = (pred_date - last_available_date).days
+
         if days_from_now <= 0:
             st.warning("⚠️ Prediction date must be after the last available stock date.")
             return None
+
+        # 🔍 For debugging — show prediction window
+        st.write(f"📅 Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
 
         if model_family == "ARIMA":
             model = ARIMAResults.load(model_path)
@@ -83,6 +89,7 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             direction = 1 if predicted_return > 0 else 0
             return direction, predicted_price
 
+        # 📦 For ML models (LSTM/XGBoost)
         features = prepare_features(stock_df, days_from_now)
 
         if model_family == "LSTM":
