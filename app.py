@@ -87,35 +87,22 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             'NVDA_Return_lag1'
         ]
         features = features[selected_features]
-
-        scaler_path = "scaler_lstm.pkl"
-        if not os.path.exists(scaler_path):
-            raise FileNotFoundError("❌ Scaler file 'scaler_lstm.pkl' not found. Please train and save it.")
-
-        scaler = joblib.load(scaler_path)
+        scaler = joblib.load("scaler_lstm.pkl")
         features_scaled = scaler.transform(features)
         features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
-
         model = joblib.load(model_path)
         prediction = model.predict(features_reshaped)
         predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
     elif model_family == "XGBoost":
-        from xgboost import XGBClassifier
-        model = XGBClassifier()
-        model.load_model(model_path)
-        # Ensure it's 2D array for prediction
-        features_array = np.array(features).reshape(1, -1)
-
-        # Predict
-        prediction = model.predict(features_array)
-        predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
-
-    else:  # fallback
-        model = joblib.load(model_path)
-        features = features.values
+        # Load XGBClassifier from JSON
+        model = xgb.XGBClassifier()
+        model.load_model(model_path)  # expects a .json path
         prediction = model.predict(features)
-        predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
+        predicted_price = prediction[0]
+
+    else:
+        return None
 
     last_price = stock_df.iloc[-1]["NVDA_Close"]
     direction = 1 if predicted_price > last_price else 0
