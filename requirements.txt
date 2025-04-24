@@ -10,3 +10,4 @@ tensorflow
 Pillow
 joblib
 xgboost
+yfinance
