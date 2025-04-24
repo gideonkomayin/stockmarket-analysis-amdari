@@ -37,18 +37,13 @@ def load_results_df():
 def get_metrics(model_name):
     results_df = load_results_df()
     model_name = model_name.strip()
-
-    # Try exact match first
     if model_name in results_df.index:
         metrics = results_df.loc[model_name].drop(labels=["Type"], errors="ignore").dropna()
         return {"metrics": metrics.to_dict()}
-
-    # Fallback to partial match (e.g. XGBoost_Tuned => XGBoost_Tuned_cw)
     for key in results_df.index:
         if key.startswith(model_name):
             metrics = results_df.loc[key].drop(labels=["Type"], errors="ignore").dropna()
             return {"metrics": metrics.to_dict(), "used_model": key}
-
     return None
 
 @st.cache_data
@@ -211,7 +206,7 @@ elif section == "Model Forecast":
                     st.error("❌ Prediction failed. Please check your model and input.")
 
         st.subheader("Model Performance")
-        model_key = f"{model_family}_{model_version}"
+        model_key = f"{model_family}_{model_version.capitalize()}"
         metrics_result = get_metrics(model_key)
 
         if metrics_result and isinstance(metrics_result, dict):
@@ -226,7 +221,7 @@ elif section == "Model Forecast":
                 st.warning("⚠️ No metric values found for the selected model.")
         else:
             st.warning("⚠️ No model performance data available.")
-        
+
         st.subheader("Charts")
         image_path = selected_model.get("image")
         if image_path and os.path.exists(image_path):
