@@ -62,7 +62,6 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
     if not os.path.exists(model_path):
         return None
 
-    model = joblib.load(model_path)
     days_from_now = (pred_date - datetime.today().date()).days
     if days_from_now <= 0:
         return None
@@ -70,7 +69,7 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
     features = prepare_features(stock_df, days_from_now)
 
     if model_family == "ARIMA":
-        # Forecast future return and price using ARIMA
+        model = joblib.load(model_path)
         forecast = model.forecast(steps=days_from_now)
         predicted_return = forecast[-1]
         direction = 1 if predicted_return > 0 else 0
@@ -79,32 +78,33 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         return direction, predicted_price
 
     elif model_family == "LSTM":
-        # Use the exact feature set used during training
         selected_features = [
-            'NVDA_Close', 'GSPC_Close',
-            'NVDA_Volume', 'GSPC_Volume',
-            'NVDA_Return', 'GSPC_Return',
-            'NVDA_RollingVol', 'GSPC_RollingVol',
+            'NVDA_Close', 'GSPC_Close', 'NVDA_Volume', 'GSPC_Volume',
+            'NVDA_Return', 'GSPC_Return', 'NVDA_RollingVol', 'GSPC_RollingVol',
             'NVDA_Return_lag1'
         ]
         features = features[selected_features]
-
-        # Load the saved scaler used during training
         scaler_path = "scaler_lstm.pkl"
         if not os.path.exists(scaler_path):
             raise FileNotFoundError("❌ Scaler file 'scaler_lstm.pkl' not found. Please train and save it.")
-
         scaler = joblib.load(scaler_path)
         features_scaled = scaler.transform(features)
         features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
-
-        # Predict future price using LSTM
+        model = joblib.load(model_path)
         prediction = model.predict(features_reshaped)
         predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
-    else:  # XGBoost or other sklearn models
-        features = features.values
-        prediction = model.predict(features)
+    elif model_family == "XGBoost":
+        import xgboost as xgb
+        dmatrix = xgb.DMatrix(features.values)
+        booster = xgb.Booster()
+        booster.load_model(model_path)  # .json file expected
+        prediction = booster.predict(dmatrix)
+        predicted_price = prediction[0]
+
+    else:
+        model = joblib.load(model_path)
+        prediction = model.predict(features.values)
         predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
 
     last_price = stock_df.iloc[-1]["NVDA_Close"]
@@ -121,8 +121,8 @@ MODELS = {
         "tuned": {"image": "cm_lstm_tuned.png", "confusion": "cm_lstm_tuned.png", "model": "best_lstm_tuned.pkl"}
     },
     "XGBoost": {
-        "base": {"image": "xgb_feature_importance_base.png", "confusion": "xgb_cm_base.png", "model": "xgb_model_base.pkl"},
-        "tuned": {"image": "xgb_feature_importance_tuned.png", "confusion": "xgb_cm_tuned.png", "model": "xgb_tuned_model.pkl"}
+        "base": {"image": "xgb_feature_importance_base.png", "confusion": "xgb_cm_base.png", "model": "xgb_model_base.json"},
+        "tuned": {"image": "xgb_feature_importance_tuned.png", "confusion": "xgb_cm_tuned.png", "model": "xgb_model_tuned.json"}
     }
 }
 
