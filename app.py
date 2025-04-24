@@ -199,38 +199,33 @@ if section == "Financial Overview":
 elif section == "Model Forecast":
     if selected_model:
         st.header(f"{model_family} {model_version.capitalize()} Model")
-
         st.subheader("Prediction")
+
         prediction_start = pd.to_datetime(df_stock.index.max().date()) + timedelta(days=1)
         pred_date = st.date_input("Select prediction date", min_value=prediction_start, max_value=prediction_start + timedelta(days=1095))
 
         if st.button("Predict Direction"):
             model_path = selected_model.get("model")
+
             if not model_path or not os.path.exists(model_path):
                 st.error(f"❌ Model file not found: {model_path}")
             else:
                 result = run_prediction(model_path, pred_date, model_family, df_stock)
                 if result:
-                    direction, price = result
+                    direction, predicted_price = result
                     direction_label = "📈 Up" if direction == 1 else "📉 Down"
+
                     result_data = {
                         "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
                         "Predicted Direction": [direction_label]
                     }
-                    if model_family == "ARIMA":
-                        result = run_prediction(model_path, pred_date, model_family, df_stock)
-                        if result:
-                            direction, predicted_price = result
-                            direction_label = "📈 Up" if direction == 1 else "📉 Down"
-                            actual_price = get_actual_price("NVDA")
 
-                            result_data = {
-                                "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
-                                "Predicted Direction": [direction_label],
-                                "Forecast Price": [f"${predicted_price:,.2f}"],
-                                "Actual Price (as of today)": [f"${actual_price:,.2f}" if actual_price else "N/A"]
-                            }
-                            st.dataframe(pd.DataFrame(result_data), use_container_width=True)
+                    if model_family == "ARIMA":
+                        result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
+                        actual_price = get_actual_price("NVDA")
+                        result_data["Actual Price (as of today)"] = [f"${actual_price:,.2f}" if actual_price else "N/A"]
+
+                    st.dataframe(pd.DataFrame(result_data), use_container_width=True)
                 else:
                     st.error("❌ Prediction failed. Please check your model and input.")
 
