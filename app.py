@@ -116,8 +116,17 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         st.write(f"📅 Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
 
         if model_family == "ARIMA":
+            # Add this block for ARIMA-specific validation
+            if days_from_now > 30:
+                st.error("ARIMA not recommended for >30 day forecasts")
+                return None
+
             model = ARIMAResults.load(model_path)
             forecast = model.get_forecast(steps=days_from_now)
+
+            # Add confidence interval display
+            st.write(f"95% Confidence Interval: [${forecast.conf_int().iloc[-1,0]:.2f}, ${forecast.conf_int().iloc[-1,1]:.2f}]")
+
             predicted_return = forecast.predicted_mean.iloc[-1]
             price_today = stock_df.iloc[-1]["NVDA_Close"]
             predicted_price = price_today * (1 + predicted_return)
