@@ -75,20 +75,23 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
 
         features = prepare_features(stock_df, days_from_now)
 
-    if model_family == "ARIMA":
-        model = joblib.load(model_path)
-        days_from_now = (pred_date - stock_df.index.max().date()).days
+        if model_family == "ARIMA":
+            model = joblib.load(model_path)
 
-        if days_from_now <= 0:
-            st.warning("⚠️ ARIMA can only forecast future dates after the dataset ends.")
-            return None
+            # Forecast relative to the last date in the stock dataset, not today's system date
+            days_from_now = (pred_date - stock_df.index.max().date()).days
+            if days_from_now <= 0:
+                st.warning("⚠️ ARIMA can only forecast dates after the dataset ends.")
+                return None
 
-        forecast = model.forecast(steps=days_from_now)
-        predicted_return = forecast[-1]
-        direction = 1 if predicted_return > 0 else 0
-        price_today = stock_df.iloc[-1]["NVDA_Close"]
-        predicted_price = price_today * (1 + predicted_return)
-        return direction, predicted_price
+            forecast = model.forecast(steps=days_from_now)
+            predicted_return = forecast[-1]
+
+            direction = 1 if predicted_return > 0 else 0
+            price_today = stock_df.iloc[-1]["NVDA_Close"]
+            predicted_price = price_today * (1 + predicted_return)
+
+            return direction, predicted_price
 
         elif model_family == "LSTM":
             selected_features = [
