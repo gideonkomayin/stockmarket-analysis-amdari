@@ -95,11 +95,10 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
     elif model_family == "XGBoost":
-        import xgboost as xgb
-        dmatrix = xgb.DMatrix(features.values)
-        booster = xgb.Booster()
-        booster.load_model(model_path)  # .json file expected
-        prediction = booster.predict(dmatrix)
+        from xgboost import XGBClassifier
+        model = XGBClassifier()
+        model.load_model(model_path)  # load the sklearn-style .json
+        prediction = model.predict(features.values)
         predicted_price = prediction[0]
 
     else:
