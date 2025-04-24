@@ -212,13 +212,22 @@ elif section == "Model Forecast":
 
         st.subheader("Model Performance")
         model_key = f"{model_family}_{model_version}"
-        metrics_data = metrics.get("metrics")
-        if metrics_data:
-            used_model = metrics.get("used_model", model_key)
-            st.write(f"Showing metrics for: `{used_model}`")
-            metrics_df = pd.DataFrame.from_dict(metrics_data, orient='index', columns=['Value'])
-            st.dataframe(metrics_df.style.format("{:.4f}"), use_container_width=True)
+        metrics_result = get_metrics(model_key)
 
+        if metrics_result and isinstance(metrics_result, dict):
+            metrics_data = metrics_result.get("metrics")
+            used_model = metrics_result.get("used_model", model_key)
+
+            if metrics_data:
+                st.write(f"Showing metrics for: `{used_model}`")
+                metrics_df = pd.DataFrame.from_dict(metrics_data, orient='index', columns=['Value'])
+                st.dataframe(metrics_df.style.format("{:.4f}"), use_container_width=True)
+            else:
+                st.warning("⚠️ No metric values found for the selected model.")
+        else:
+            st.warning("⚠️ No model performance data available.")
+        
+        st.subheader("Charts")
         image_path = selected_model.get("image")
         if image_path and os.path.exists(image_path):
             st.image(Image.open(image_path), caption=f"{model_family} Forecast", use_container_width=True)
