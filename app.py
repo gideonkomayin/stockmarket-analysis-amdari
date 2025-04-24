@@ -331,11 +331,18 @@ elif section == "Export Batch Prediction":
 
                 import yfinance as yf
                 ticker = yf.Ticker("NVDA")
-                actuals = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-                actuals.index = actuals.index.date
-                actual_prices = actuals["Close"].rename("Actual Price")
+                # Fetch actual prices matching the forecast date range
+                actual_prices = []
+                for date in forecast_dates:
+                    try:
+                        data = ticker.history(start=date, end=date + timedelta(days=1))
+                        close_price = data["Close"].iloc[0] if not data.empty else None
+                    except Exception:
+                        close_price = None
+                    actual_prices.append(close_price)
 
-                final_df = forecast_df.set_index("Date").join(actual_prices).reset_index()
+                # Add actual prices to forecast dataframe
+                forecast_df["Actual Price"] = actual_prices
 
                 st.dataframe(final_df.style.format({
                     "Forecast Price": "${:,.2f}",
