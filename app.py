@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import joblib
 from sklearn.preprocessing import MinMaxScaler
+from xgboost import XGBClassifier
 
 st.set_page_config(layout="wide", page_title="NVIDIA Stock Forecast", page_icon="📈")
 
@@ -84,10 +85,7 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             'NVDA_Return_lag1'
         ]
         features = features[selected_features]
-        scaler_path = "scaler_lstm.pkl"
-        if not os.path.exists(scaler_path):
-            raise FileNotFoundError("❌ Scaler file 'scaler_lstm.pkl' not found. Please train and save it.")
-        scaler = joblib.load(scaler_path)
+        scaler = joblib.load("scaler_lstm.pkl")
         features_scaled = scaler.transform(features)
         features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
         model = joblib.load(model_path)
@@ -95,9 +93,8 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
     elif model_family == "XGBoost":
-        from xgboost import XGBClassifier
         model = XGBClassifier()
-        model.load_model(model_path)  # load the sklearn-style .json
+        model.load_model(model_path)  # expects sklearn-style .json
         prediction = model.predict(features.values)
         predicted_price = prediction[0]
 
@@ -121,7 +118,7 @@ MODELS = {
     },
     "XGBoost": {
         "base": {"image": "xgb_feature_importance_base.png", "confusion": "xgb_cm_base.png", "model": "xgb_model_base.json"},
-        "tuned": {"image": "xgb_feature_importance_tuned.png", "confusion": "xgb_cm_tuned.png", "model": "xgb_model_tuned.json"}
+        "tuned": {"image": "xgb_feature_importance_tuned.png", "confusion": "xgb_cm_tuned.png", "model": "xgb_tuned_model.json"}
     }
 }
 
