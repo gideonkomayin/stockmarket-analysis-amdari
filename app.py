@@ -215,6 +215,8 @@ elif section == "Model Forecast":
         metrics = get_metrics(model_key)
 
         if metrics:
+            used_model = metrics.get("used_model", model_key)
+            st.write(f"Showing metrics for: `{used_model}`")
             metrics_df = pd.DataFrame.from_dict(metrics["metrics"], orient='index', columns=['Value'])
             st.dataframe(metrics_df.style.format("{:.4f}"), use_container_width=True)
 
