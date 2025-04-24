@@ -7,6 +7,7 @@ import os
 from datetime import datetime, timedelta
 import plotly.express as px
 import joblib
+from sklearn.preprocessing import MinMaxScaler
 
 st.set_page_config(layout="wide", page_title="NVIDIA Stock Forecast", page_icon="📈")
 
@@ -53,9 +54,9 @@ def check_model_files():
 
 def prepare_features(stock_df, days_from_now):
     latest = stock_df.iloc[-1:].copy()
-    latest["DaysAhead"] = days_from_now
-    drop_cols = ["NVDA_Return", "NVDA_Direction"]
-    return latest.drop(columns=[col for col in drop_cols if col in latest.columns], errors="ignore")
+    latest['DaysAhead'] = days_from_now
+    drop_cols = ['NVDA_Direction']
+    return latest.drop(columns=[col for col in drop_cols if col in latest.columns], errors='ignore')
 
 def run_prediction(model_path, pred_date, model_family, stock_df):
     if not os.path.exists(model_path):
@@ -66,22 +67,49 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
     if days_from_now <= 0:
         return None
 
+    features = prepare_features(stock_df, days_from_now)
+
     if model_family == "ARIMA":
+        # Forecast future return and price using ARIMA
         forecast = model.forecast(steps=days_from_now)
         predicted_return = forecast[-1]
         direction = 1 if predicted_return > 0 else 0
         price_today = stock_df.iloc[-1]["NVDA_Close"]
         predicted_price = price_today * (1 + predicted_return)
         return direction, predicted_price
-    else:
-        features = prepare_features(stock_df, days_from_now)
-        if model_family == "LSTM":
-            features = features.values.reshape((1, features.shape[1], 1))
+
+    elif model_family == "LSTM":
+        # Use the exact feature set used during training
+        selected_features = [
+            'NVDA_Close', 'GSPC_Close',
+            'NVDA_Volume', 'GSPC_Volume',
+            'NVDA_Return', 'GSPC_Return',
+            'NVDA_RollingVol', 'GSPC_RollingVol',
+            'NVDA_Return_lag1'
+        ]
+        features = features[selected_features]
+
+        # Load the saved scaler used during training
+        scaler_path = "scaler_lstm.pkl"
+        if not os.path.exists(scaler_path):
+            raise FileNotFoundError("❌ Scaler file 'scaler_lstm.pkl' not found. Please train and save it.")
+
+        scaler = joblib.load(scaler_path)
+        features_scaled = scaler.transform(features)
+        features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
+
+        # Predict future price using LSTM
+        prediction = model.predict(features_reshaped)
+        predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
+
+    else:  # XGBoost or other sklearn models
+        features = features.values
         prediction = model.predict(features)
         predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
-        last_price = stock_df.iloc[-1]["NVDA_Close"]
-        direction = 1 if predicted_price > last_price else 0
-        return direction, predicted_price
+
+    last_price = stock_df.iloc[-1]["NVDA_Close"]
+    direction = 1 if predicted_price > last_price else 0
+    return direction, predicted_price
 
 MODELS = {
     "ARIMA": {
@@ -202,3 +230,4 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.caption("Built by Bamise - Omatseye - Gideon • Powered by Streamlit")
+
