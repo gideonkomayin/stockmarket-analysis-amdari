@@ -9,6 +9,7 @@ import plotly.express as px
 import joblib
 from sklearn.preprocessing import MinMaxScaler
 from xgboost import XGBClassifier
+from statsmodels.tsa.arima.model import ARIMAResults
 
 st.set_page_config(layout="wide", page_title="NVIDIA Stock Forecast", page_icon="📈")
 
@@ -68,32 +69,23 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             st.error(f"❌ Model file not found at: {model_path}")
             return None
 
-        days_from_now = (pred_date - datetime.today().date()).days
+        days_from_now = (pred_date - stock_df.index.max().date()).days
         if days_from_now <= 0:
-            st.warning("⚠️ Prediction date must be in the future.")
+            st.warning("⚠️ Prediction date must be after the last available stock date.")
             return None
+
+        if model_family == "ARIMA":
+            model = ARIMAResults.load(model_path)
+            forecast = model.get_forecast(steps=days_from_now)
+            predicted_return = forecast.predicted_mean.iloc[-1]
+            price_today = stock_df.iloc[-1]["NVDA_Close"]
+            predicted_price = price_today * (1 + predicted_return)
+            direction = 1 if predicted_return > 0 else 0
+            return direction, predicted_price
 
         features = prepare_features(stock_df, days_from_now)
 
-        if model_family == "ARIMA":
-            model = joblib.load(model_path)
-
-            # Forecast relative to the last date in the stock dataset, not today's system date
-            days_from_now = (pred_date - stock_df.index.max().date()).days
-            if days_from_now <= 0:
-                st.warning("⚠️ ARIMA can only forecast dates after the dataset ends.")
-                return None
-
-            forecast = model.forecast(steps=days_from_now)
-            predicted_return = forecast[-1]
-
-            direction = 1 if predicted_return > 0 else 0
-            price_today = stock_df.iloc[-1]["NVDA_Close"]
-            predicted_price = price_today * (1 + predicted_return)
-
-            return direction, predicted_price
-
-        elif model_family == "LSTM":
+        if model_family == "LSTM":
             selected_features = [
                 'NVDA_Close', 'GSPC_Close',
                 'NVDA_Volume', 'GSPC_Volume',
