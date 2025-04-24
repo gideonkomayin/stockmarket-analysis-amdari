@@ -181,7 +181,7 @@ st.title("NVIDIA Stock Direction Forecasting")
 
 with st.sidebar:
     st.header("Navigation")
-    section = st.radio("Select Section", ["Financial Overview", "Model Forecast", Export Batch Prediction], index=0)
+    section = st.radio("Select Section", ["Financial Overview", "Model Forecast", "Export Batch Prediction"], index=0)
     if section == "Model Forecast":
         model_family = st.selectbox("Model Type", list(MODELS.keys()), index=0)
         model_version = st.radio("Model Version", ["base", "tuned"], horizontal=True)
