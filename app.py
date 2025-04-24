@@ -285,19 +285,45 @@ elif section == "Export Batch Prediction":
         model_df = model_df.fillna(0)
 
         # Weighted scoring for classification models
-        weights = {'accuracy': 0.3, 'precision': 0.2, 'recall': 0.1, 'f1': 0.3, 'roc_auc': 0.1}
+        weights = {'accuracy': 0.35, 'precision': 0.25, 'recall': 0.2, 'f1': 0.2}
         model_df["weighted_score"] = (
             model_df['accuracy'] * weights['accuracy'] +
             model_df['precision'] * weights['precision'] +
             model_df['recall'] * weights['recall'] +
-            model_df['f1'] * weights['f1'] +
-            model_df['roc_auc'] * weights['roc_auc']
+            model_df['f1'] * weights['f1']
         )
 
         best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='weighted_score', ascending=False).iloc[0]
         best_model_name = best_row["Model"]
 
         st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['weighted_score']:.4f}")
+
+        st.subheader("📊 Classification Model Comparison")
+        st.markdown("""
+        **🔍 How Weighted Scoring Works**
+        
+        To determine the best classification model, we compute a **weighted score** based on:
+        - **Accuracy (35%)** – overall correct predictions
+        - **Precision (25%)** – correctness when predicting positives
+        - **Recall (20%)** – ability to find all relevant positives
+        - **F1 Score (20%)** – balance between precision and recall
+
+        This reflects our priority for overall reliability and fewer false positives, which is crucial in financial forecasting.
+        """)
+
+        metric_cols = ["Model", "accuracy", "precision", "recall", "f1", "roc_auc", "weighted_score"]
+        display_df = model_df[metric_cols].copy().sort_values("weighted_score", ascending=False)
+        st.dataframe(display_df.style.format("{:.4f}"), use_container_width=True)
+
+        import plotly.express as px
+        fig = px.bar(display_df, x="Model", y="weighted_score", title="📊 Weighted Scores by Model", text_auto=True, color="weighted_score")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(f"""
+        ### 🏆 Best Classification Model:
+        **{best_model_name}**  
+        with a **weighted score of {best_row['weighted_score']:.4f}**, prioritizing accuracy and precision.
+        """)
 
         st.subheader("📈 ARIMA Price Forecast")
 
@@ -329,11 +355,9 @@ elif section == "Export Batch Prediction":
                 })
                 forecast_df["Date"] = forecast_df["Date"].dt.date
 
-                import yfinance as yf
                 ticker = yf.Ticker("NVDA")
-                # Fetch actual prices matching the forecast date range
                 actual_prices = []
-                for date in forecast_dates:
+                for date in forecast_df["Date"]:
                     try:
                         data = ticker.history(start=date, end=date + timedelta(days=1))
                         close_price = data["Close"].iloc[0] if not data.empty else None
@@ -341,15 +365,14 @@ elif section == "Export Batch Prediction":
                         close_price = None
                     actual_prices.append(close_price)
 
-                # Add actual prices to forecast dataframe
                 forecast_df["Actual Price"] = actual_prices
 
-                st.dataframe(final_df.style.format({
+                st.dataframe(forecast_df.style.format({
                     "Forecast Price": "${:,.2f}",
                     "Actual Price": "${:,.2f}"
                 }), use_container_width=True)
 
-                csv = final_df.to_csv(index=False).encode('utf-8')
+                csv = forecast_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Download Forecast CSV",
                     data=csv,
@@ -359,7 +382,6 @@ elif section == "Export Batch Prediction":
 
     except Exception as e:
         st.error(f"Failed to process batch predictions: {e}")
-
 
 st.markdown("""
 <style>
