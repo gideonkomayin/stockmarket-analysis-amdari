@@ -157,58 +157,6 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         st.error(f"❌ Prediction error: {e}")
         return None
 
-# Export Forecast Section
-st.markdown("---")
-st.header("📤 Export Batch Prediction")
-
-st.subheader("Step 1: Select Forecast Range")
-forecast_range = st.date_input("Select forecast date range", value=(datetime.today() + timedelta(days=1), datetime.today() + timedelta(days=7)))
-
-if len(forecast_range) != 2 or forecast_range[0] >= forecast_range[1]:
-    st.warning("Please select a valid start and end date.")
-else:
-    forecast_start = forecast_range[0]
-    forecast_end = forecast_range[1]
-    forecast_days = (forecast_end - forecast_start).days + 1
-
-    df_metrics = load_model_metrics()
-    df_metrics["weighted_score"] = df_metrics.apply(weighted_score, axis=1)
-    df_ranked = df_metrics.sort_values("weighted_score", ascending=False)
-
-    st.subheader("📊 Ranked Models (Classification Only)")
-    st.dataframe(df_ranked[["accuracy", "precision", "recall", "f1", "weighted_score"]], use_container_width=True)
-
-    best_model_name = df_ranked.index[0]
-    st.success(f"Best Model for Directional Prediction: `{best_model_name}`")
-
-    st.subheader("📈 ARIMA Price Forecast")
-    try:
-        arima_model = ARIMAResults.load(MODELS["ARIMA"]["tuned"]["model"])
-        days_from_now = (forecast_end - df_stock.index.max().date()).days
-        forecast = arima_model.get_forecast(steps=days_from_now)
-        forecast_df = forecast.predicted_mean
-        price_today = df_stock.iloc[-1]["NVDA_Close"]
-
-        forecast_table = []
-        for i, predicted_return in enumerate(forecast_df[-forecast_days:]):
-            forecast_date = df_stock.index.max().date() + timedelta(days=(i + 1))
-            predicted_price = price_today * (1 + predicted_return)
-            actual_price, _ = get_actual_market_data(forecast_date)
-            forecast_table.append({
-                "Forecast Date": forecast_date.strftime('%Y-%m-%d'),
-                "Forecast Price": f"${predicted_price:,.2f}",
-                "Actual Price": f"${actual_price:,.2f}" if actual_price else "N/A"
-            })
-
-        df_export = pd.DataFrame(forecast_table)
-        st.dataframe(df_export, use_container_width=True)
-
-        csv = df_export.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Download Forecast CSV", data=csv, file_name="forecast_results.csv", mime='text/csv')
-
-    except Exception as e:
-        st.error(f"Failed to run ARIMA forecast: {e}")
-
 MODELS = {
     "ARIMA": {
         "base": {"image": "arima_forecast_base.png", "model": "arima_model_base.pkl"},
@@ -233,12 +181,12 @@ st.title("NVIDIA Stock Direction Forecasting")
 
 with st.sidebar:
     st.header("Navigation")
-    section = st.radio("Select Section", ["Financial Overview", "Model Forecast"], index=0)
-    if section != "Financial Overview":
+    section = st.radio("Select Section", ["Financial Overview", "Model Forecast", Export Batch Prediction], index=0)
+    if section == "Model Forecast":
         model_family = st.selectbox("Model Type", list(MODELS.keys()), index=0)
         model_version = st.radio("Model Version", ["base", "tuned"], horizontal=True)
 
-selected_model = MODELS[model_family][model_version] if section != "Financial Overview" else None
+selected_model = MODELS[model_family][model_version] if section == "Model Forecast" else None
 
 if section == "Financial Overview":
     st.header("Financial Performance")
@@ -325,6 +273,87 @@ elif section == "Model Forecast":
 
     else:
         st.warning("Please select a model type and version in the sidebar.")
+
+elif section == "Export Batch Prediction":
+    st.header("📤 Export Batch Predictions")
+
+    st.markdown("This section compares model performance and exports ARIMA price forecasts alongside actual prices.")
+
+    # Load model results and drop irrelevant rows
+    try:
+        model_df = pd.read_csv("model_results.csv")
+        model_df = model_df[~model_df["Model"].str.contains("_nf|_cw", na=False)].copy()
+        model_df = model_df.fillna(0)
+
+        # Weighted scoring for classification models
+        weights = {'accuracy': 0.3, 'precision': 0.2, 'recall': 0.1, 'f1': 0.3, 'roc_auc': 0.1}
+        model_df["weighted_score"] = (
+            model_df['accuracy'] * weights['accuracy'] +
+            model_df['precision'] * weights['precision'] +
+            model_df['recall'] * weights['recall'] +
+            model_df['f1'] * weights['f1'] +
+            model_df['roc_auc'] * weights['roc_auc']
+        )
+
+        # Get best non-ARIMA model
+        best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='weighted_score', ascending=False).iloc[0]
+        best_model_name = best_row["Model"]
+
+        st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['weighted_score']:.4f}")
+
+        # ARIMA forecast batch
+        st.subheader("📈 ARIMA Price Forecast")
+
+        arima_model_path = MODELS["ARIMA"]["tuned"]["model"]
+        if not os.path.exists(arima_model_path):
+            st.error("ARIMA model file not found.")
+        else:
+            start_date = st.date_input("Forecast Start Date", value=datetime.today().date() + timedelta(days=1))
+            end_date = st.date_input("Forecast End Date", value=start_date + timedelta(days=10))
+            if start_date >= end_date:
+                st.warning("Start date must be before end date.")
+            else:
+                days_to_forecast = (end_date - df_stock.index.max().date()).days
+                forecast_horizon = (end_date - start_date).days + 1
+
+                if forecast_horizon > 30:
+                    st.warning("⚠️ ARIMA is recommended for ≤30 day horizons.")
+
+                model = ARIMAResults.load(arima_model_path)
+                forecast = model.get_forecast(steps=days_to_forecast)
+                predicted_returns = forecast.predicted_mean[-forecast_horizon:]
+                price_today = df_stock.iloc[-1]["NVDA_Close"]
+                predicted_prices = price_today * (1 + predicted_returns.cumsum())
+
+                # Get actual prices via yfinance
+                import yfinance as yf
+                ticker = yf.Ticker("NVDA")
+                actual_df = ticker.history(start=start_date, end=end_date + timedelta(days=1))
+                actual_df = actual_df["Close"].rename("Actual Price")
+
+                # Combine into result table
+                forecast_dates = pd.date_range(start=start_date, end=end_date)
+                output_df = pd.DataFrame({
+                    "Date": forecast_dates,
+                    "Forecast Price": predicted_prices.values
+                }).set_index("Date")
+
+                output_df = output_df.join(actual_df, how="left")
+                output_df.reset_index(inplace=True)
+
+                st.dataframe(output_df.style.format({"Forecast Price": "${:,.2f}", "Actual Price": "${:,.2f}"}), use_container_width=True)
+
+                # Export
+                csv = output_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Forecast CSV",
+                    data=csv,
+                    file_name='batch_forecast_export.csv',
+                    mime='text/csv'
+                )
+
+    except Exception as e:
+        st.error(f"Failed to process batch predictions: {e}")
 
 st.markdown("""
 <style>
