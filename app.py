@@ -15,7 +15,7 @@ st.set_page_config(layout="wide", page_title="NVIDIA Stock Forecast", page_icon=
 @st.cache_data
 def load_data():
     try:
-        stock = pd.read_csv("nvidia_stock_data.csv", parse_dates=['Date'], index_col='Date')
+        stock = pd.read_csv("stock_data.csv", parse_dates=['Date'], index_col='Date')
         financials = pd.read_csv("stock_financials.csv", index_col='Year')
         financials.index = pd.to_datetime(financials.index, format='%Y')
         financials.index.name = 'Date'
@@ -104,8 +104,11 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         from xgboost import XGBClassifier
         model = XGBClassifier()
         model.load_model(model_path)
-        features = features.values
-        prediction = model.predict(features)
+        # Ensure it's 2D array for prediction
+        features_array = np.array(features).reshape(1, -1)
+
+        # Predict
+        prediction = model.predict(features_array)
         predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
 
     else:  # fallback
