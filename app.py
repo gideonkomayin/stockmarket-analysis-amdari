@@ -194,30 +194,29 @@ elif section == "Model Forecast":
             metrics_df = pd.DataFrame.from_dict(metrics["metrics"], orient='index', columns=['Value'])
             st.dataframe(metrics_df.style.format("{:.4f}"))
 
-        st.subheader("Prediction")
-        pred_date = st.date_input("Select prediction date", min_value=datetime.today(), max_value=datetime.today() + timedelta(days=365))
-        if st.button("Predict Direction"):
-            model_path = selected_model.get("model")
-            if not model_path or not os.path.exists(model_path):
-                st.error(f"❌ Model file not found: {model_path}")
-            else:
-                result = run_prediction(model_path, pred_date, model_family, df_stock)
-                if result:
-                    direction, forecast_price = result
-                    current_price = df_stock.iloc[-1]["NVDA_Close"]
-                    direction_label = "📈 Up" if direction == 1 else "📉 Down"
-                    percent_change = ((forecast_price - current_price) / current_price) * 100
+            st.subheader("Prediction")
+            prediction_start = pd.to_datetime(df_stock.index.max().date()) + timedelta(days=1)
+            pred_date = st.date_input("Select prediction date", min_value=prediction_start, max_value=prediction_start + timedelta(days=365))
 
-                    st.subheader("Prediction Result")
-                    st.dataframe(pd.DataFrame({
-                        "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
-                        "Current Price": [f"${current_price:,.2f}"],
-                        "Forecast Price": [f"${forecast_price:,.2f}"],
-                        "% Change": [f"{percent_change:.2f}%"],
-                        "Predicted Direction": [direction_label]
-                    }))
+            if st.button("Predict Direction"):
+                model_path = selected_model.get("model")
+                if not model_path or not os.path.exists(model_path):
+                    st.error(f"❌ Model file not found: {model_path}")
                 else:
-                    st.error("❌ Prediction failed. Please check your model and input.")
+                    result = run_prediction(model_path, pred_date, model_family, df_stock)
+                    if result:
+                        direction, price = result
+                        direction_label = "📈 Up" if direction == 1 else "📉 Down"
+                        result_data = {
+                            "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
+                            "Predicted Direction": [direction_label]
+                        }
+                        if model_family == "ARIMA":
+                            result_data["Forecast Price"] = [f"${price:,.2f}"]
+                        st.dataframe(pd.DataFrame(result_data), use_container_width=True)
+                    else:
+                        st.error("❌ Prediction failed. Please check your model and input.")
+
     else:
         st.warning("Please select a model type and version in the sidebar.")
 
