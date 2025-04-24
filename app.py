@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 from PIL import Image
 import os
+import yfinance as yf
 from datetime import datetime, timedelta
 import plotly.express as px
 import joblib
@@ -56,6 +57,15 @@ def check_model_files():
                 if file_type in ['image', 'model', 'confusion'] and not os.path.exists(path):
                     missing.append(path)
     return missing
+
+def get_actual_price(ticker="NVDA"):
+    try:
+        data = yf.download(ticker, period="5d", interval="1d")
+        latest_close = data['Close'].iloc[-1]
+        return round(latest_close, 2)
+    except Exception as e:
+        st.warning(f"⚠️ Could not fetch actual price from yfinance: {e}")
+        return None
 
 def prepare_features(stock_df, days_from_now):
     latest = stock_df.iloc[-1:].copy()
@@ -208,8 +218,19 @@ elif section == "Model Forecast":
                         "Predicted Direction": [direction_label]
                     }
                     if model_family == "ARIMA":
-                        result_data["Forecast Price"] = [f"${price:,.2f}"]
-                    st.dataframe(pd.DataFrame(result_data), use_container_width=True)
+                        result = run_prediction(model_path, pred_date, model_family, df_stock)
+                        if result:
+                            direction, predicted_price = result
+                            direction_label = "📈 Up" if direction == 1 else "📉 Down"
+                            actual_price = get_actual_price("NVDA")
+
+                            result_data = {
+                                "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
+                                "Predicted Direction": [direction_label],
+                                "Forecast Price": [f"${predicted_price:,.2f}"],
+                                "Actual Price (as of today)": [f"${actual_price:,.2f}" if actual_price else "N/A"]
+                            }
+                            st.dataframe(pd.DataFrame(result_data), use_container_width=True)
                 else:
                     st.error("❌ Prediction failed. Please check your model and input.")
 
