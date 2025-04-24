@@ -80,27 +80,38 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
 
     elif model_family == "LSTM":
         selected_features = [
-            'NVDA_Close', 'GSPC_Close', 'NVDA_Volume', 'GSPC_Volume',
-            'NVDA_Return', 'GSPC_Return', 'NVDA_RollingVol', 'GSPC_RollingVol',
+            'NVDA_Close', 'GSPC_Close',
+            'NVDA_Volume', 'GSPC_Volume',
+            'NVDA_Return', 'GSPC_Return',
+            'NVDA_RollingVol', 'GSPC_RollingVol',
             'NVDA_Return_lag1'
         ]
         features = features[selected_features]
-        scaler = joblib.load("scaler_lstm.pkl")
+
+        scaler_path = "scaler_lstm.pkl"
+        if not os.path.exists(scaler_path):
+            raise FileNotFoundError("❌ Scaler file 'scaler_lstm.pkl' not found. Please train and save it.")
+
+        scaler = joblib.load(scaler_path)
         features_scaled = scaler.transform(features)
         features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
+
         model = joblib.load(model_path)
         prediction = model.predict(features_reshaped)
         predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
     elif model_family == "XGBoost":
+        from xgboost import XGBClassifier
         model = XGBClassifier()
-        model.load_model(model_path)  # expects sklearn-style .json
-        prediction = model.predict(features.values)
-        predicted_price = prediction[0]
+        model.load_model(model_path)
+        features = features.values
+        prediction = model.predict(features)
+        predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
 
-    else:
+    else:  # fallback
         model = joblib.load(model_path)
-        prediction = model.predict(features.values)
+        features = features.values
+        prediction = model.predict(features)
         predicted_price = prediction[0] if hasattr(prediction, '__len__') else prediction
 
     last_price = stock_df.iloc[-1]["NVDA_Close"]
