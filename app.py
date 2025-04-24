@@ -1,4 +1,5 @@
 
+# app.py - NVIDIA Stock Direction Forecasting Dashboard
 import streamlit as st
 import pandas as pd
 from PIL import Image
@@ -26,30 +27,49 @@ def load_data():
 @st.cache_data
 def load_results_df():
     try:
-        return pd.read_csv("model_results.csv", index_col="Model")
-    except:
+        df = pd.read_csv("model_results.csv", index_col="Model")
+        return df
+    except Exception as e:
+        st.error(f"❌ Could not load model_results.csv: {e}")
         return pd.DataFrame()
 
 @st.cache_data
 def get_metrics(model_name):
-    df = load_results_df()
+    results_df = load_results_df()
     model_name = model_name.strip()
-    if model_name in df.index:
-        return df.loc[model_name].drop("Type", errors="ignore").dropna().to_dict()
-    return {}
+    if model_name in results_df.index:
+        metrics = results_df.loc[model_name].drop(labels=["Type"], errors="ignore").dropna()
+        return {"metrics": metrics.to_dict()}
+    else:
+        return None
+
+@st.cache_data
+def check_model_files():
+    missing = []
+    for model_family in MODELS.values():
+        for version in model_family.values():
+            for file_type, path in version.items():
+                if file_type in ['image', 'model', 'confusion'] and not os.path.exists(path):
+                    missing.append(path)
+    return missing
 
 def prepare_features(stock_df, days_from_now):
     latest = stock_df.iloc[-1:].copy()
     latest['DaysAhead'] = days_from_now
-    return latest.drop(columns=['NVDA_Direction'], errors='ignore')
+    drop_cols = ['NVDA_Direction']
+    return latest.drop(columns=[col for col in drop_cols if col in latest.columns], errors='ignore')
 
 def run_prediction(model_path, pred_date, model_family, stock_df):
     try:
         if not os.path.exists(model_path):
+            st.error(f"❌ Model file not found at: {model_path}")
             return None
+
         days_from_now = (pred_date - datetime.today().date()).days
         if days_from_now <= 0:
+            st.warning("⚠️ Prediction date must be in the future.")
             return None
+
         features = prepare_features(stock_df, days_from_now)
 
         if model_family == "ARIMA":
@@ -61,30 +81,45 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             predicted_price = price_today * (1 + predicted_return)
             return direction, predicted_price
 
-        selected_features = [
-            'NVDA_Close', 'GSPC_Close', 'NVDA_Volume', 'GSPC_Volume',
-            'NVDA_Return', 'GSPC_Return', 'NVDA_RollingVol', 'GSPC_RollingVol', 'NVDA_Return_lag1'
-        ]
-        features = features[selected_features]
-
-        if model_family == "LSTM":
+        elif model_family == "LSTM":
+            selected_features = [
+                'NVDA_Close', 'GSPC_Close',
+                'NVDA_Volume', 'GSPC_Volume',
+                'NVDA_Return', 'GSPC_Return',
+                'NVDA_RollingVol', 'GSPC_RollingVol',
+                'NVDA_Return_lag1'
+            ]
+            features = features[selected_features]
             scaler = joblib.load("scaler_lstm.pkl")
             features_scaled = scaler.transform(features)
             features_reshaped = features_scaled.reshape((1, 1, features_scaled.shape[1]))
             model = joblib.load(model_path)
-            pred = model.predict(features_reshaped)
-            predicted_price = pred[0][0] if hasattr(pred[0], '__len__') else pred[0]
+            prediction = model.predict(features_reshaped)
+            predicted_price = prediction[0][0] if hasattr(prediction[0], '__len__') else prediction[0]
 
         elif model_family == "XGBoost":
             import xgboost as xgb
             model = xgb.XGBClassifier()
             model.load_model(model_path)
-            pred = model.predict(features)
-            predicted_price = pred[0]
+            selected_features = [
+                'NVDA_Close', 'GSPC_Close',
+                'NVDA_Volume', 'GSPC_Volume',
+                'NVDA_Return', 'GSPC_Return',
+                'NVDA_RollingVol', 'GSPC_RollingVol',
+                'NVDA_Return_lag1'
+            ]
+            features = features[selected_features]
+            prediction = model.predict(features)
+            predicted_price = prediction[0]
+
+        else:
+            st.error("❌ Unknown model type selected.")
+            return None
 
         last_price = stock_df.iloc[-1]["NVDA_Close"]
         direction = 1 if predicted_price > last_price else 0
         return direction, predicted_price
+
     except Exception as e:
         st.error(f"❌ Prediction error: {e}")
         return None
@@ -104,61 +139,81 @@ MODELS = {
     }
 }
 
-if missing := [p for m in MODELS.values() for v in m.values() for k, p in v.items() if k in ['image', 'model', 'confusion'] and not os.path.exists(p)]:
-    st.warning("Missing files: " + ", ".join(missing))
+if missing_files := check_model_files():
+    st.warning(f"Missing model files: {', '.join(missing_files)}")
 
 df_stock, df_financials = load_data()
+
 st.title("NVIDIA Stock Direction Forecasting")
 
 with st.sidebar:
-    section = st.radio("View Section", ["Financial Overview", "Model Forecast"])
-    if section == "Model Forecast":
-        model_family = st.selectbox("Select Model Type", list(MODELS.keys()))
-        model_version = st.radio("Version", ["base", "tuned"], horizontal=True)
-        selected_model = MODELS[model_family][model_version]
-    else:
-        selected_model = None
+    st.header("Navigation")
+    section = st.radio("Select Section", ["Financial Overview", "Model Forecast"], index=0)
+    if section != "Financial Overview":
+        model_family = st.selectbox("Model Type", list(MODELS.keys()), index=0)
+        model_version = st.radio("Model Version", ["base", "tuned"], horizontal=True)
+
+selected_model = MODELS[model_family][model_version] if section != "Financial Overview" else None
 
 if section == "Financial Overview":
-    st.header("📊 Financial Overview")
+    st.header("Financial Performance")
     if df_financials is not None:
-        yr_range = st.slider("Year Range", min(df_financials.index.year), max(df_financials.index.year),
-                             (min(df_financials.index.year), max(df_financials.index.year)))
-        filtered = df_financials[df_financials.index.year.between(yr_range[0], yr_range[1])]
-        metrics = st.multiselect("Choose Metrics", df_financials.columns.tolist(), default=['Revenue', 'Net_Income'])
+        years = df_financials.index.year.unique()
+        min_year, max_year = min(years), max(years)
+        year_range = st.slider("Select Year Range", min_value=min_year, max_value=max_year, value=(min_year, max_year))
+        filtered_fin = df_financials[(df_financials.index.year >= year_range[0]) & (df_financials.index.year <= year_range[1])]
+        filtered_fin = filtered_fin.reset_index()
+
+        metrics = st.multiselect("Select Metrics to Display", options=[col for col in df_financials.columns if col not in ['Date']], default=['Revenue', 'Net_Income', 'Gross_Profit', 'Total_Assets', 'Total_Liabilities'])
+
         if metrics:
-            st.plotly_chart(px.line(filtered.reset_index(), x='Date', y=metrics, title="Financial Metrics"))
-        st.dataframe(filtered.reset_index())
-else:
-    st.header(f"{model_family} {model_version.capitalize()} Forecast")
-    img = selected_model.get("image")
-    if img and os.path.exists(img):
-        st.image(Image.open(img), caption=f"{model_family} Forecast", use_container_width=True)
+            fig = px.line(filtered_fin, x='Date', y=metrics, title="Financial Metrics Over Time")
+            st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("📈 Model Performance")
-    mkey = f"{model_family}_{model_version}"
-    m = get_metrics(mkey)
-    if m:
-        df_metrics = pd.DataFrame.from_dict(m, orient='index', columns=["Value"])
-        st.dataframe(df_metrics.style.format("{:.4f}"))
+        st.subheader("Raw Financial Data")
+        st.dataframe(filtered_fin, use_container_width=True)
+    else:
+        st.warning("Financial data could not be loaded.")
 
-    st.subheader("📅 Predict Direction")
-    start_date = df_stock.index.max().date() + timedelta(days=1)
-    pred_date = st.date_input("Pick a prediction date", min_value=start_date, max_value=start_date + timedelta(days=365))
+elif section == "Model Forecast":
+    if selected_model:
+        st.header(f"{model_family} {model_version.capitalize()} Model")
+        image_path = selected_model.get("image")
+        if image_path and os.path.exists(image_path):
+            st.image(Image.open(image_path), caption=f"{model_family} Forecast", use_container_width=True)
 
-    if st.button("Run Prediction"):
-        direction, forecast = run_prediction(selected_model["model"], pred_date, model_family, df_stock)
-        if direction is not None:
-            label = "📈 Up" if direction else "📉 Down"
-            output = {
-                "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
-                "Predicted Direction": [label]
-            }
-            if model_family == "ARIMA":
-                output["Forecast Price"] = [f"${forecast:,.2f}"]
-            st.dataframe(pd.DataFrame(output), use_container_width=True)
-        else:
-            st.error("Prediction failed. Check logs and input.")
+        confusion_path = selected_model.get("confusion")
+        if confusion_path and os.path.exists(confusion_path):
+            st.image(Image.open(confusion_path), caption="Confusion Matrix", use_container_width=True)
+
+        st.subheader("Model Performance")
+        model_key = f"{model_family}_{model_version}"
+        metrics = get_metrics(model_key)
+
+        if metrics:
+            metrics_df = pd.DataFrame.from_dict(metrics["metrics"], orient='index', columns=['Value'])
+            st.dataframe(metrics_df.style.format("{:.4f}"))
+
+        st.subheader("Prediction")
+        pred_date = st.date_input("Select prediction date", min_value=datetime.today(), max_value=datetime.today() + timedelta(days=365))
+        if st.button("Predict Direction"):
+            model_path = selected_model.get("model")
+            if not model_path or not os.path.exists(model_path):
+                st.error(f"❌ Model file not found: {model_path}")
+            else:
+                result = run_prediction(model_path, pred_date, model_family, df_stock)
+                if result:
+                    direction, price = result
+                    direction_label = "📈 Up" if direction == 1 else "📉 Down"
+                    st.table(pd.DataFrame({
+                        "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
+                        "Predicted Direction": [direction_label],
+                        "Forecast Price": [f"${price:,.2f}"]
+                    }))
+                else:
+                    st.error("❌ Prediction failed. Please check your model and input.")
+    else:
+        st.warning("Please select a model type and version in the sidebar.")
 
 st.caption("Built by Bamise - Omatseye - Gideon • Powered by Streamlit")
 
