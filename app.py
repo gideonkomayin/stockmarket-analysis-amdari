@@ -59,35 +59,25 @@ def check_model_files():
     return missing
 
 def get_actual_market_data(pred_date, ticker="NVDA"):
-    """
-    Returns both actual price and direction for the prediction date
-    Returns: (actual_price, actual_direction) or (None, None) if unavailable
-    """
-    import yfinance as yf
     try:
-        # Get data for a window around the prediction date
         start_date = pred_date - timedelta(days=14)
-        end_date = pred_date + timedelta(days=1)  # Include next day to ensure we get our date
+        end_date = pred_date + timedelta(days=1)
         data = yf.download(ticker, start=start_date, end=end_date)
-        
+
         if len(data) < 2:
             return None, None
-            
-        # Find the exact prediction date or nearest previous date
+
         pred_date_str = pred_date.strftime('%Y-%m-%d')
         if pred_date_str in data.index:
             actual_price = data.loc[pred_date_str]["Close"].item()
-            # Get previous trading day
             prev_idx = data.index.get_loc(pred_date_str) - 1
             prev_price = data.iloc[prev_idx]["Close"].item()
         else:
-            # If exact date not found, use most recent available data
             actual_price = data.iloc[-1]["Close"].item()
             prev_price = data.iloc[-2]["Close"].item()
-        
+
         actual_direction = 1 if actual_price > prev_price else 0
         return actual_price, actual_direction
-        
     except Exception as e:
         st.error(f"Error fetching market data: {e}")
         return None, None
@@ -104,7 +94,6 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             st.error(f"❌ Model file not found at: {model_path}")
             return None
 
-        # 🔁 Use dataset's last date, not today's system date
         last_available_date = stock_df.index.max().date()
         days_from_now = (pred_date - last_available_date).days
 
@@ -112,16 +101,12 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             st.warning("⚠️ Prediction date must be after the last available stock date.")
             return None
 
-        # 🔍 For debugging — show prediction window
-        st.write(f"📅 Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
+        st.write(f"🗓️ Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
 
         if model_family == "ARIMA":
-
-            # In your ARIMA prediction code, limit the forecast horizon:
-            if days_from_now > 30:  # Max 30 days ahead for ARIMA
+            if days_from_now > 30:
                 st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
                 return None
-
             model = ARIMAResults.load(model_path)
             forecast = model.get_forecast(steps=days_from_now)
             predicted_return = forecast.predicted_mean.iloc[-1]
@@ -130,7 +115,6 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             direction = 1 if predicted_return > 0 else 0
             return direction, predicted_price
 
-        # 📦 For ML models (LSTM/XGBoost)
         features = prepare_features(stock_df, days_from_now)
 
         if model_family == "LSTM":
@@ -245,11 +229,9 @@ elif section == "Model Forecast":
                 if result:
                     direction, predicted_price = result
                     direction_label = "📈 Up" if direction == 1 else "📉 Down"
-                    
-                    # Get both actual price and direction in one call
+
                     actual_price, actual_direction = get_actual_market_data(pred_date)
-                    
-                    # Prepare results
+
                     result_data = {
                         "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
                         "Predicted Direction": [direction_label],
@@ -257,16 +239,13 @@ elif section == "Model Forecast":
                         "Prediction Accuracy": ["✅ Correct" if direction == actual_direction else "❌ Incorrect" if actual_direction is not None else "N/A"]
                     }
 
-                    # Only show price columns for ARIMA
                     if model_family == "ARIMA":
                         result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
                         result_data["Actual Price"] = [f"${actual_price:,.2f}" if actual_price else "N/A"]
-                    
-                    # Show warning if data unavailable
+
                     if actual_direction is None:
                         st.warning("Market data unavailable for this date (may be future date or market closed)")
-                    
-                    # Display results
+
                     st.dataframe(pd.DataFrame(result_data), use_container_width=True)
 
         st.subheader("Model Performance")
