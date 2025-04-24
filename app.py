@@ -284,6 +284,10 @@ elif section == "Export Batch Prediction":
         model_df = model_df[~model_df["Model"].str.contains("_nf|_cw", na=False)].copy()
         model_df = model_df.fillna(0)
 
+        # Ensure numeric types
+        metrics_to_convert = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
+        model_df[metrics_to_convert] = model_df[metrics_to_convert].apply(pd.to_numeric, errors='coerce')
+
         # Weighted scoring for classification models
         weights = {'accuracy': 0.35, 'precision': 0.25, 'recall': 0.2, 'f1': 0.2}
         model_df["weighted_score"] = (
