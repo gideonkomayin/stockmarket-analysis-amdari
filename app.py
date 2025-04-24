@@ -61,13 +61,11 @@ def check_model_files():
 def get_actual_price(ticker="NVDA"):
     import yfinance as yf
     try:
-        ticker_obj = yf.Ticker(ticker)
-        today_data = ticker_obj.history(period="1d")
-        if not today_data.empty:
-            return today_data["Close"].iloc[-1]
+        data = yf.Ticker(ticker).history(period="1d")
+        if not data.empty:
+            return data["Close"].iloc[-1]  # <- this is a float
         return None
-    except Exception as e:
-        print(f"Error fetching actual price: {e}")
+    except Exception:
         return None
 
 def prepare_features(stock_df, days_from_now):
