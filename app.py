@@ -58,45 +58,39 @@ def check_model_files():
                     missing.append(path)
     return missing
 
-def get_actual_direction(pred_date, ticker="NVDA"):
-    """Returns the actual direction (1=up, 0=down) between pred_date and previous trading day"""
+def get_actual_market_data(pred_date, ticker="NVDA"):
+    """
+    Returns both actual price and direction for the prediction date
+    Returns: (actual_price, actual_direction) or (None, None) if unavailable
+    """
     import yfinance as yf
     try:
         # Get data for a window around the prediction date
         start_date = pred_date - timedelta(days=14)
-        data = yf.download(ticker, start=start_date, end=pred_date)
-
+        end_date = pred_date + timedelta(days=1)  # Include next day to ensure we get our date
+        data = yf.download(ticker, start=start_date, end=end_date)
+        
         if len(data) < 2:
-            return None
-
-        # Get the last two available trading days (use .item() to get scalar values)
-        actual_price = data.iloc[-1]["Close"].item()
-        prev_price = data.iloc[-2]["Close"].item()
-
-        return 1 if actual_price > prev_price else 0
-
+            return None, None
+            
+        # Find the exact prediction date or nearest previous date
+        pred_date_str = pred_date.strftime('%Y-%m-%d')
+        if pred_date_str in data.index:
+            actual_price = data.loc[pred_date_str]["Close"].item()
+            # Get previous trading day
+            prev_idx = data.index.get_loc(pred_date_str) - 1
+            prev_price = data.iloc[prev_idx]["Close"].item()
+        else:
+            # If exact date not found, use most recent available data
+            actual_price = data.iloc[-1]["Close"].item()
+            prev_price = data.iloc[-2]["Close"].item()
+        
+        actual_direction = 1 if actual_price > prev_price else 0
+        return actual_price, actual_direction
+        
     except Exception as e:
-        st.error(f"Error fetching actual direction: {e}")
-        return None
-
-def get_actual_price(pred_date, ticker="NVDA"):
-    """Returns the actual closing price on the prediction date"""
-    import yfinance as yf
-    try:
-        # Get data for a window around the prediction date
-        start_date = pred_date - timedelta(days=7)  # 1 week buffer
-        data = yf.download(ticker, start=start_date, end=pred_date)
-
-        if not data.empty:
-            # Try to get exact date first
-            if pred_date.strftime('%Y-%m-%d') in data.index:
-                return data.loc[pred_date.strftime('%Y-%m-%d')]["Close"]
-            # Otherwise return most recent available price
-            return data["Close"].iloc[-1]
-        return None
-    except Exception as e:
-        st.error(f"Error fetching actual price: {e}")
-        return None
+        st.error(f"Error fetching market data: {e}")
+        return None, None
 
 def prepare_features(stock_df, days_from_now):
     latest = stock_df.iloc[-1:].copy()
@@ -122,6 +116,12 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         st.write(f"📅 Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
 
         if model_family == "ARIMA":
+
+            # In your ARIMA prediction code, limit the forecast horizon:
+            if days_from_now > 30:  # Max 30 days ahead for ARIMA
+                st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
+                return None
+
             model = ARIMAResults.load(model_path)
             forecast = model.get_forecast(steps=days_from_now)
             predicted_return = forecast.predicted_mean.iloc[-1]
@@ -245,41 +245,28 @@ elif section == "Model Forecast":
                 if result:
                     direction, predicted_price = result
                     direction_label = "📈 Up" if direction == 1 else "📉 Down"
-
-                    # Get actual direction
-                    actual_direction = get_actual_direction(pred_date)
-                    actual_direction_label = "📈 Up" if actual_direction == 1 else "📉 Down" if actual_direction is not None else "N/A"
-
-                    # Compare prediction vs actual
-                    if actual_direction is not None:
-                        correct_prediction = "✅ Correct" if direction == actual_direction else "❌ Incorrect"
-                    else:
-                        correct_prediction = "N/A"
-
+                    
+                    # Get both actual price and direction in one call
+                    actual_price, actual_direction = get_actual_market_data(pred_date)
+                    
+                    # Prepare results
                     result_data = {
                         "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
                         "Predicted Direction": [direction_label],
-                        "Actual Direction": [actual_direction_label],
-                        "Prediction Accuracy": [correct_prediction]
+                        "Actual Direction": ["📈 Up" if actual_direction == 1 else "📉 Down" if actual_direction is not None else "N/A"],
+                        "Prediction Accuracy": ["✅ Correct" if direction == actual_direction else "❌ Incorrect" if actual_direction is not None else "N/A"]
                     }
 
-                    # Only show price for ARIMA models
+                    # Only show price columns for ARIMA
                     if model_family == "ARIMA":
                         result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
-                        # Get actual price for ARIMA only
-                        actual_price = get_actual_price(pred_date)
-                        try:
-                            actual_price_val = float(actual_price) if actual_price else None
-                            actual_price_str = f"${actual_price_val:,.2f}" if actual_price_val else "N/A (Market closed)"
-                            result_data["Actual Price"] = [actual_price_str]
-                        except (TypeError, ValueError):
-                            result_data["Actual Price"] = ["N/A (Market closed)"]
-
-                    # Show warning if we couldn't get actual direction
+                        result_data["Actual Price"] = [f"${actual_price:,.2f}" if actual_price else "N/A"]
+                    
+                    # Show warning if data unavailable
                     if actual_direction is None:
-                        st.warning("Could not determine actual market direction for this date (market may have been closed)")
-
-                    # Show the full result table
+                        st.warning("Market data unavailable for this date (may be future date or market closed)")
+                    
+                    # Display results
                     st.dataframe(pd.DataFrame(result_data), use_container_width=True)
 
         st.subheader("Model Performance")
