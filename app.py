@@ -37,11 +37,19 @@ def load_results_df():
 def get_metrics(model_name):
     results_df = load_results_df()
     model_name = model_name.strip()
+
+    # Try exact match first
     if model_name in results_df.index:
         metrics = results_df.loc[model_name].drop(labels=["Type"], errors="ignore").dropna()
         return {"metrics": metrics.to_dict()}
-    else:
-        return None
+
+    # Fallback to partial match (e.g. XGBoost_Tuned => XGBoost_Tuned_cw)
+    for key in results_df.index:
+        if key.startswith(model_name):
+            metrics = results_df.loc[key].drop(labels=["Type"], errors="ignore").dropna()
+            return {"metrics": metrics.to_dict(), "used_model": key}
+
+    return None
 
 @st.cache_data
 def check_model_files():
