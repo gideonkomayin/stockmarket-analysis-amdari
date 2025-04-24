@@ -212,12 +212,11 @@ elif section == "Model Forecast":
 
         st.subheader("Model Performance")
         model_key = f"{model_family}_{model_version}"
-        metrics = get_metrics(model_key)
-
-        if metrics:
+        metrics_data = metrics.get("metrics")
+        if metrics_data:
             used_model = metrics.get("used_model", model_key)
             st.write(f"Showing metrics for: `{used_model}`")
-            metrics_df = pd.DataFrame.from_dict(metrics["metrics"], orient='index', columns=['Value'])
+            metrics_df = pd.DataFrame.from_dict(metrics_data, orient='index', columns=['Value'])
             st.dataframe(metrics_df.style.format("{:.4f}"), use_container_width=True)
 
         image_path = selected_model.get("image")
