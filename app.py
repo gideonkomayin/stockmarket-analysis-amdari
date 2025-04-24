@@ -106,7 +106,7 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
         if model_family == "ARIMA":
             if days_from_now > 30:
                 st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
-                return None
+
             model = ARIMAResults.load(model_path)
             forecast = model.get_forecast(steps=days_from_now)
             predicted_return = forecast.predicted_mean.iloc[-1]
