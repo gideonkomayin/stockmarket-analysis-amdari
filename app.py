@@ -63,10 +63,8 @@ def get_actual_market_data(pred_date, ticker="NVDA"):
         start_date = pred_date - timedelta(days=14)
         end_date = pred_date + timedelta(days=1)
         data = yf.download(ticker, start=start_date, end=end_date)
-
         if len(data) < 2:
             return None, None
-
         pred_date_str = pred_date.strftime('%Y-%m-%d')
         if pred_date_str in data.index:
             actual_price = data.loc[pred_date_str]["Close"].item()
@@ -75,7 +73,6 @@ def get_actual_market_data(pred_date, ticker="NVDA"):
         else:
             actual_price = data.iloc[-1]["Close"].item()
             prev_price = data.iloc[-2]["Close"].item()
-
         actual_direction = 1 if actual_price > prev_price else 0
         return actual_price, actual_direction
     except Exception as e:
@@ -88,6 +85,18 @@ def prepare_features(stock_df, days_from_now):
     drop_cols = ['NVDA_Direction']
     return latest.drop(columns=[col for col in drop_cols if col in latest.columns], errors='ignore')
 
+def weighted_score(row):
+    if 'accuracy' in row and 'precision' in row and 'recall' in row and 'f1' in row:
+        return 0.35 * row['accuracy'] + 0.25 * row['precision'] + 0.2 * row['recall'] + 0.2 * row['f1']
+    else:
+        return 0
+
+def load_model_metrics():
+    df = load_results_df()
+    df = df[~df.index.str.contains("_nf|_cw")]  # Filter out _nf and _cw
+    df = df.dropna(subset=['accuracy', 'precision', 'recall', 'f1'], how='any')
+    return df
+
 def run_prediction(model_path, pred_date, model_family, stock_df):
     try:
         if not os.path.exists(model_path):
@@ -96,17 +105,11 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
 
         last_available_date = stock_df.index.max().date()
         days_from_now = (pred_date - last_available_date).days
-
         if days_from_now <= 0:
             st.warning("⚠️ Prediction date must be after the last available stock date.")
             return None
 
-        st.write(f"🗓️ Forecasting {days_from_now} day(s) ahead from {last_available_date} to {pred_date}")
-
         if model_family == "ARIMA":
-            if days_from_now > 30:
-                st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
-
             model = ARIMAResults.load(model_path)
             forecast = model.get_forecast(steps=days_from_now)
             predicted_return = forecast.predicted_mean.iloc[-1]
@@ -119,12 +122,9 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
 
         if model_family == "LSTM":
             selected_features = [
-                'NVDA_Close', 'GSPC_Close',
-                'NVDA_Volume', 'GSPC_Volume',
-                'NVDA_Return', 'GSPC_Return',
-                'NVDA_RollingVol', 'GSPC_RollingVol',
-                'NVDA_Return_lag1'
-            ]
+                'NVDA_Close', 'GSPC_Close', 'NVDA_Volume', 'GSPC_Volume',
+                'NVDA_Return', 'GSPC_Return', 'NVDA_RollingVol', 'GSPC_RollingVol',
+                'NVDA_Return_lag1']
             features = features[selected_features]
             scaler = joblib.load("scaler_lstm.pkl")
             features_scaled = scaler.transform(features)
@@ -138,12 +138,9 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
             model = xgb.XGBClassifier()
             model.load_model(model_path)
             selected_features = [
-                'NVDA_Close', 'GSPC_Close',
-                'NVDA_Volume', 'GSPC_Volume',
-                'NVDA_Return', 'GSPC_Return',
-                'NVDA_RollingVol', 'GSPC_RollingVol',
-                'NVDA_Return_lag1'
-            ]
+                'NVDA_Close', 'GSPC_Close', 'NVDA_Volume', 'GSPC_Volume',
+                'NVDA_Return', 'GSPC_Return', 'NVDA_RollingVol', 'GSPC_RollingVol',
+                'NVDA_Return_lag1']
             features = features[selected_features]
             prediction = model.predict(features)
             predicted_price = prediction[0]
@@ -159,6 +156,58 @@ def run_prediction(model_path, pred_date, model_family, stock_df):
     except Exception as e:
         st.error(f"❌ Prediction error: {e}")
         return None
+
+# Export Forecast Section
+st.markdown("---")
+st.header("📤 Export Batch Prediction")
+
+st.subheader("Step 1: Select Forecast Range")
+forecast_range = st.date_input("Select forecast date range", value=(datetime.today() + timedelta(days=1), datetime.today() + timedelta(days=7)))
+
+if len(forecast_range) != 2 or forecast_range[0] >= forecast_range[1]:
+    st.warning("Please select a valid start and end date.")
+else:
+    forecast_start = forecast_range[0]
+    forecast_end = forecast_range[1]
+    forecast_days = (forecast_end - forecast_start).days + 1
+
+    df_metrics = load_model_metrics()
+    df_metrics["weighted_score"] = df_metrics.apply(weighted_score, axis=1)
+    df_ranked = df_metrics.sort_values("weighted_score", ascending=False)
+
+    st.subheader("📊 Ranked Models (Classification Only)")
+    st.dataframe(df_ranked[["accuracy", "precision", "recall", "f1", "weighted_score"]], use_container_width=True)
+
+    best_model_name = df_ranked.index[0]
+    st.success(f"Best Model for Directional Prediction: `{best_model_name}`")
+
+    st.subheader("📈 ARIMA Price Forecast")
+    try:
+        arima_model = ARIMAResults.load(MODELS["ARIMA"]["tuned"]["model"])
+        days_from_now = (forecast_end - df_stock.index.max().date()).days
+        forecast = arima_model.get_forecast(steps=days_from_now)
+        forecast_df = forecast.predicted_mean
+        price_today = df_stock.iloc[-1]["NVDA_Close"]
+
+        forecast_table = []
+        for i, predicted_return in enumerate(forecast_df[-forecast_days:]):
+            forecast_date = df_stock.index.max().date() + timedelta(days=(i + 1))
+            predicted_price = price_today * (1 + predicted_return)
+            actual_price, _ = get_actual_market_data(forecast_date)
+            forecast_table.append({
+                "Forecast Date": forecast_date.strftime('%Y-%m-%d'),
+                "Forecast Price": f"${predicted_price:,.2f}",
+                "Actual Price": f"${actual_price:,.2f}" if actual_price else "N/A"
+            })
+
+        df_export = pd.DataFrame(forecast_table)
+        st.dataframe(df_export, use_container_width=True)
+
+        csv = df_export.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Download Forecast CSV", data=csv, file_name="forecast_results.csv", mime='text/csv')
+
+    except Exception as e:
+        st.error(f"Failed to run ARIMA forecast: {e}")
 
 MODELS = {
     "ARIMA": {
