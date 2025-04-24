@@ -58,14 +58,25 @@ def check_model_files():
                     missing.append(path)
     return missing
 
-def get_actual_price(ticker="NVDA"):
+def get_actual_direction(pred_date, ticker="NVDA"):
+    """Returns the actual direction (1=up, 0=down) between pred_date and previous trading day"""
     import yfinance as yf
     try:
-        data = yf.Ticker(ticker).history(period="1d")
-        if not data.empty:
-            return data["Close"].iloc[-1]  # <- this is a float
-        return None
-    except Exception:
+        # Get data for a window around the prediction date
+        start_date = pred_date - timedelta(days=14)  # 2 weeks buffer to ensure we get previous trading day
+        data = yf.download(ticker, start=start_date, end=pred_date)
+        
+        if len(data) < 2:
+            return None  # Not enough data to determine direction
+            
+        # Get the last two available trading days
+        actual_price = data.iloc[-1]["Close"]
+        prev_price = data.iloc[-2]["Close"]
+        
+        return 1 if actual_price > prev_price else 0
+        
+    except Exception as e:
+        st.error(f"Error fetching actual direction: {e}")
         return None
 
 def prepare_features(stock_df, days_from_now):
@@ -215,26 +226,40 @@ elif section == "Model Forecast":
                 if result:
                     direction, predicted_price = result
                     direction_label = "📈 Up" if direction == 1 else "📉 Down"
+                    
+                    # Get actual direction
+                    actual_direction = get_actual_direction(pred_date)
+                    actual_direction_label = "📈 Up" if actual_direction == 1 else "📉 Down" if actual_direction is not None else "N/A"
+                    
+                    # Compare prediction vs actual
+                    if actual_direction is not None:
+                        correct_prediction = "✅ Correct" if direction == actual_direction else "❌ Incorrect"
+                    else:
+                        correct_prediction = "N/A"
 
+                    if actual_direction is None:
+                    st.warning("Could not determine actual market direction for this date (market may have been closed)")
+                    
                     result_data = {
                         "Prediction Date": [pred_date.strftime('%Y-%m-%d')],
-                        "Predicted Direction": [direction_label]
+                        "Predicted Direction": [direction_label],
+                        "Actual Direction": [actual_direction_label],
+                        "Prediction Accuracy": [correct_prediction]
                     }
 
                     if model_family == "ARIMA":
                         result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
-
-                    # Always fetch and show today's actual price (regardless of model family)
-                    actual_price = get_actual_price("NVDA")
-
+                    
+                    # Get actual price for display
+                    actual_price = get_actual_price(pred_date)
                     try:
                         actual_price_val = float(actual_price)
                         actual_price_str = f"${actual_price_val:,.2f}"
                     except (TypeError, ValueError):
-                        actual_price_str = "N/A"
-
-                    result_data["Actual Price (as of today)"] = [actual_price_str]
-
+                        actual_price_str = "N/A (Market closed)"
+                    
+                    result_data["Actual Price"] = [actual_price_str]
+                    
                     # Show the full result table
                     st.dataframe(pd.DataFrame(result_data), use_container_width=True)
 
