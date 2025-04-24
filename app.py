@@ -63,15 +63,15 @@ def get_actual_direction(pred_date, ticker="NVDA"):
     import yfinance as yf
     try:
         # Get data for a window around the prediction date
-        start_date = pred_date - timedelta(days=14)  # 2 weeks buffer to ensure we get previous trading day
+        start_date = pred_date - timedelta(days=14)
         data = yf.download(ticker, start=start_date, end=pred_date)
         
         if len(data) < 2:
-            return None  # Not enough data to determine direction
+            return None
             
-        # Get the last two available trading days
-        actual_price = data.iloc[-1]["Close"]
-        prev_price = data.iloc[-2]["Close"]
+        # Get the last two available trading days (use .item() to get scalar values)
+        actual_price = data.iloc[-1]["Close"].item()
+        prev_price = data.iloc[-2]["Close"].item()
         
         return 1 if actual_price > prev_price else 0
         
@@ -246,10 +246,8 @@ elif section == "Model Forecast":
                     direction, predicted_price = result
                     direction_label = "📈 Up" if direction == 1 else "📉 Down"
                     
-                    # Get actual direction and price
+                    # Get actual direction
                     actual_direction = get_actual_direction(pred_date)
-                    actual_price = get_actual_price(pred_date)
-                    
                     actual_direction_label = "📈 Up" if actual_direction == 1 else "📉 Down" if actual_direction is not None else "N/A"
                     
                     # Compare prediction vs actual
@@ -265,16 +263,17 @@ elif section == "Model Forecast":
                         "Prediction Accuracy": [correct_prediction]
                     }
 
+                    # Only show price for ARIMA models
                     if model_family == "ARIMA":
                         result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
-                    
-                    try:
-                        actual_price_val = float(actual_price) if actual_price else None
-                        actual_price_str = f"${actual_price_val:,.2f}" if actual_price_val else "N/A (Market closed)"
-                    except (TypeError, ValueError):
-                        actual_price_str = "N/A (Market closed)"
-                    
-                    result_data["Actual Price"] = [actual_price_str]
+                        # Get actual price for ARIMA only
+                        actual_price = get_actual_price(pred_date)
+                        try:
+                            actual_price_val = float(actual_price) if actual_price else None
+                            actual_price_str = f"${actual_price_val:,.2f}" if actual_price_val else "N/A (Market closed)"
+                            result_data["Actual Price"] = [actual_price_str]
+                        except (TypeError, ValueError):
+                            result_data["Actual Price"] = ["N/A (Market closed)"]
                     
                     # Show warning if we couldn't get actual direction
                     if actual_direction is None:
