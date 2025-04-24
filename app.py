@@ -181,7 +181,7 @@ elif section == "Model Forecast":
 
         st.subheader("Prediction")
         prediction_start = pd.to_datetime(df_stock.index.max().date()) + timedelta(days=1)
-        pred_date = st.date_input("Select prediction date", min_value=prediction_start, max_value=prediction_start + timedelta(days=365))
+        pred_date = st.date_input("Select prediction date", min_value=prediction_start, max_value=prediction_start + timedelta(days=1095))
 
         if st.button("Predict Direction"):
             model_path = selected_model.get("model")
