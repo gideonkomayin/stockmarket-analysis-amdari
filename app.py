@@ -279,7 +279,6 @@ elif section == "Export Batch Prediction":
 
     st.markdown("This section compares model performance and exports ARIMA price forecasts alongside actual prices.")
 
-    # Load model results and drop irrelevant rows
     try:
         model_df = pd.read_csv("model_results.csv")
         model_df = model_df[~model_df["Model"].str.contains("_nf|_cw", na=False)].copy()
@@ -295,13 +294,11 @@ elif section == "Export Batch Prediction":
             model_df['roc_auc'] * weights['roc_auc']
         )
 
-        # Get best non-ARIMA model
         best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='weighted_score', ascending=False).iloc[0]
         best_model_name = best_row["Model"]
 
         st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['weighted_score']:.4f}")
 
-        # ARIMA forecast batch
         st.subheader("📈 ARIMA Price Forecast")
 
         arima_model_path = MODELS["ARIMA"]["tuned"]["model"]
@@ -317,7 +314,7 @@ elif section == "Export Batch Prediction":
                 forecast_horizon = (end_date - start_date).days + 1
 
                 if forecast_horizon > 30:
-                    st.warning("⚠️ ARIMA is recommended for ≤30 day horizons.")
+                    st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
 
                 model = ARIMAResults.load(arima_model_path)
                 forecast = model.get_forecast(steps=days_to_forecast)
@@ -325,26 +322,27 @@ elif section == "Export Batch Prediction":
                 price_today = df_stock.iloc[-1]["NVDA_Close"]
                 predicted_prices = price_today * (1 + predicted_returns.cumsum())
 
-                # Get actual prices via yfinance
-                import yfinance as yf
-                ticker = yf.Ticker("NVDA")
-                actual_df = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-                actual_df = actual_df["Close"].rename("Actual Price")
-
-                # Combine into result table
                 forecast_dates = pd.date_range(start=start_date, end=end_date)
-                output_df = pd.DataFrame({
+                forecast_df = pd.DataFrame({
                     "Date": forecast_dates,
                     "Forecast Price": predicted_prices.values
-                }).set_index("Date")
+                })
+                forecast_df["Date"] = forecast_df["Date"].dt.date
 
-                output_df = output_df.join(actual_df, how="left")
-                output_df.reset_index(inplace=True)
+                import yfinance as yf
+                ticker = yf.Ticker("NVDA")
+                actuals = ticker.history(start=start_date, end=end_date + timedelta(days=1))
+                actuals.index = actuals.index.date
+                actual_prices = actuals["Close"].rename("Actual Price")
 
-                st.dataframe(output_df.style.format({"Forecast Price": "${:,.2f}", "Actual Price": "${:,.2f}"}), use_container_width=True)
+                final_df = forecast_df.set_index("Date").join(actual_prices).reset_index()
 
-                # Export
-                csv = output_df.to_csv(index=False).encode('utf-8')
+                st.dataframe(final_df.style.format({
+                    "Forecast Price": "${:,.2f}",
+                    "Actual Price": "${:,.2f}"
+                }), use_container_width=True)
+
+                csv = final_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Download Forecast CSV",
                     data=csv,
@@ -354,6 +352,7 @@ elif section == "Export Batch Prediction":
 
     except Exception as e:
         st.error(f"Failed to process batch predictions: {e}")
+
 
 st.markdown("""
 <style>
