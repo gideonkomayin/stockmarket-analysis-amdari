@@ -59,12 +59,15 @@ def check_model_files():
     return missing
 
 def get_actual_price(ticker="NVDA"):
+    import yfinance as yf
     try:
-        data = yf.download(ticker, period="5d", interval="1d")
-        latest_close = data['Close'].iloc[-1]
-        return round(latest_close, 2)
+        ticker_obj = yf.Ticker(ticker)
+        today_data = ticker_obj.history(period="1d")
+        if not today_data.empty:
+            return today_data["Close"].iloc[-1]
+        return None
     except Exception as e:
-        st.warning(f"⚠️ Could not fetch actual price from yfinance: {e}")
+        print(f"Error fetching actual price: {e}")
         return None
 
 def prepare_features(stock_df, days_from_now):
@@ -222,12 +225,20 @@ elif section == "Model Forecast":
 
                     if model_family == "ARIMA":
                         result_data["Forecast Price"] = [f"${predicted_price:,.2f}"]
-                        actual_price = get_actual_price("NVDA")
-                        result_data["Actual Price (as of today)"] = [f"${actual_price:,.2f}" if actual_price else "N/A"]
 
+                    # Always fetch and show today's actual price (regardless of model family)
+                    actual_price = get_actual_price("NVDA")
+
+                    try:
+                        actual_price_val = float(actual_price)
+                        actual_price_str = f"${actual_price_val:,.2f}"
+                    except (TypeError, ValueError):
+                        actual_price_str = "N/A"
+
+                    result_data["Actual Price (as of today)"] = [actual_price_str]
+
+                    # Show the full result table
                     st.dataframe(pd.DataFrame(result_data), use_container_width=True)
-                else:
-                    st.error("❌ Prediction failed. Please check your model and input.")
 
         st.subheader("Model Performance")
         model_key = f"{model_family}_{model_version.capitalize()}"
