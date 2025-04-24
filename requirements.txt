@@ -9,4 +9,4 @@ plotly.express
 tensorflow
 Pillow
 joblib
-xgboost
+xgboost==1.6.2
