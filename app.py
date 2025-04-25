@@ -181,7 +181,7 @@ st.title("NVIDIA Stock Direction Forecasting")
 
 with st.sidebar:
     st.header("Navigation")
-    section = st.radio("Select Section", ["Financial Overview", "Model Forecast", "Export Batch Prediction"], index=0)
+    section = st.radio("Select Section", ["Financial Overview", "Model Forecast", "Model Comparison"], index=0)
     if section == "Model Forecast":
         model_family = st.selectbox("Model Type", list(MODELS.keys()), index=0)
         model_version = st.radio("Model Version", ["base", "tuned"], horizontal=True)
@@ -274,8 +274,8 @@ elif section == "Model Forecast":
     else:
         st.warning("Please select a model type and version in the sidebar.")
 
-elif section == "Export Batch Prediction":
-    st.header("📤 Export Batch Predictions")
+elif section == "Model Comparison":
+    st.header("Model Comparison")
 
     st.markdown("This section compares model performance and exports ARIMA price forecasts alongside actual prices.")
 
@@ -298,14 +298,15 @@ elif section == "Export Batch Prediction":
             model_df['roc_auc'] * weights['roc_auc']
         )
 
-        st.subheader("📊 Model Metrics Comparison")
+        st.subheader("Model Metrics Comparison")
         st.markdown("""
-        **Weighted Score Calculation:**
-        - Accuracy × 0.3
-        - Precision × 0.2
-        - Recall × 0.1
-        - F1 Score × 0.3
-        - ROC AUC × 0.1
+        ** How Weighted Scoring Works**
+        
+        To determine the best classification model, we compute a **weighted score** based on:
+        - **Accuracy (30%)** – overall correct predictions
+        - **Precision (20%)** – correctness when predicting positives
+        - **Recall (10%)** – ability to find all relevant positives
+        - **F1 Score (30%)** – balance between precision and recall
 
         These weights emphasize **F1 Score** and **Accuracy** as they balance precision and recall, crucial for financial decision-making.
         """)
@@ -325,60 +326,6 @@ elif section == "Export Batch Prediction":
         best_model_name = best_row["Model"]
 
         st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
-
-        st.subheader("📈 ARIMA Price Forecast (Trading Days Only)")
-
-        def show_arima_forecast(df_stock):
-            """Display trading-day-specific ARIMA forecasts"""
-            st.subheader("📈 ARIMA Price Forecast (Trading Days Only)")
-            
-            # Date selection
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Start Date", datetime.today().date() + timedelta(days=1))
-            with col2:
-                end_date = st.date_input("End Date", start_date + timedelta(days=10))
-            
-            if start_date >= end_date:
-                return st.warning("Start date must be before end date")
-
-            # Get trading days
-            trading_days = yf.Ticker("NVDA").history(
-                start=start_date,
-                end=end_date + timedelta(days=1)
-            
-            if trading_days.empty:
-                return st.error("No trading days in selected range")
-
-            # ARIMA forecast
-            model = ARIMAResults.load(MODELS["ARIMA"]["tuned"]["model"])
-            forecast_steps = (trading_days.index[-1].date() - df_stock.index.max().date()).days
-            forecast = model.get_forecast(steps=forecast_steps)
-            
-            # Format results
-            results = pd.DataFrame({
-                "Date": trading_days.index.date,
-                "Forecast": df_stock.iloc[-1]["NVDA_Close"] * (1 + forecast.predicted_mean[-len(trading_days):].cumsum()),
-                "Actual": trading_days["Close"].values
-            })
-
-            # Display and export
-            st.dataframe(
-                results.style.format({
-                    "Forecast": "${:,.2f}",
-                    "Actual": "${:,.2f}"
-                }),
-                use_container_width=True
-            )
-            
-            st.download_button(
-                "💾 Download Forecast",
-                data=results.to_csv(index=False).encode('utf-8'),
-                file_name="arima_forecast.csv",
-                mime="text/csv"
-            )
-    except Exception as e:
-        st.error(f"Failed to process batch predictions: {e}")
 
 st.markdown("""
 <style>
