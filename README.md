@@ -3,7 +3,9 @@
 ## Overview
 This project implements a sophisticated stock market analysis system using machine learning techniques to predict stock market trends and provide valuable insights for investors. The system utilizes LSTM (Long Short-Term Memory) neural networks and various statistical models to analyze historical stock data and generate predictions. The project focuses on analyzing NVIDIA (NVDA) stock performance in comparison to its competitor Quantum Computing Inc. (QUBT) and the S&P 500 index (^GSPC).
 
-![Price Trends](images/price_trends.png)
+**Live Demo:** [Stock Market Analysis Dashboard](https://stockmarket-analysis-amdari.streamlit.app/)
+
+![Price Trends](nvidia_stockmarketanalysis.ipynb)
 *Figure 1: Price trends comparison between NVDA, QUBT, and S&P 500 (2010-2024)*
 
 ## Authors
@@ -170,7 +172,7 @@ The following metrics are tracked for each model:
 - Root Mean Squared Error (RMSE)
 - ROC AUC Score
 
-![Model Accuracy Comparison](images/model_accuracy_comparison.png)
+![Model Accuracy Comparison](model_results.csv)
 *Figure 2: Final model accuracy comparison across different implementations*
 
 ### Model Comparison Methodology
@@ -214,7 +216,7 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
 - Integration of multiple data sources (market data, financial metrics, technical indicators) improved prediction accuracy
 - Real-time market data integration through yfinance provided up-to-date analysis capabilities
 
-![Daily Returns](images/daily_returns.png)
+![Daily Returns](nvidia_stockmarketanalysis.ipynb)
 *Figure 3: Daily returns comparison between NVDA, QUBT, and S&P 500*
 
 ### Model Performance Findings
@@ -223,7 +225,7 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
    - Tuned LSTM model showed improved accuracy over base model
    - Particularly effective in capturing long-term trends and patterns
 
-![LSTM Confusion Matrix](images/lstm_cm_tuned.png)
+![LSTM Confusion Matrix](cm_lstm_tuned.png)
 *Figure 4: LSTM model confusion matrix showing prediction accuracy*
 
 2. ARIMA Models:
@@ -231,7 +233,7 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
    - Demonstrated good performance in capturing seasonal patterns
    - Tuned ARIMA model showed significant improvement in prediction accuracy
 
-![ARIMA Forecast](images/arima_forecast_tuned.png)
+![ARIMA Forecast](arima_forecast_tuned.png)
 *Figure 5: ARIMA model price forecasting results*
 
 3. XGBoost Models:
@@ -239,7 +241,7 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
    - Strong in handling non-linear relationships in the data
    - Demonstrated robust performance across different market conditions
 
-![XGBoost Feature Importance](images/xgb_feature_importance_tuned.png)
+![XGBoost Feature Importance](xgb_feature_importance_tuned.png)
 *Figure 6: XGBoost model feature importance analysis*
 
 ### Investment Recommendations
