@@ -300,8 +300,8 @@ elif section == "Model Comparison":
 
         st.subheader("Model Metrics Comparison")
         st.markdown("""
-        ** How Weighted Scoring Works**
-        
+        **How Weighted Scoring Works**
+
         To determine the best classification model, we compute a **weighted score** based on:
         - **Accuracy (30%)** – overall correct predictions
         - **Precision (20%)** – correctness when predicting positives
@@ -327,9 +327,9 @@ elif section == "Model Comparison":
 
         st.success(f"Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
 
-  except Exception as e:
+    except Exception as e:
         st.error(f"Failed to process batch predictions: {e}")
-        
+
 st.markdown("""
 <style>
     .stMetric {
