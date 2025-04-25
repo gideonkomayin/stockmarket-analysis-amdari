@@ -338,7 +338,6 @@ elif section == "Export Batch Prediction":
             if start_date >= end_date:
                 st.warning("Start date must be before end date.")
             else:
-                # Load trading days between start and end
                 ticker = yf.Ticker("NVDA")
                 trading_data = ticker.history(start=start_date, end=end_date + timedelta(days=1))
                 forecast_dates = trading_data.index.date
@@ -364,7 +363,6 @@ elif section == "Export Batch Prediction":
                         "Forecast Price": predicted_prices.values
                     })
 
-                    # Fetch actual close prices
                     actual_df = trading_data["Close"].rename("Actual Price")
                     actual_df.index = actual_df.index.date
                     final_df = forecast_df.set_index("Date").join(actual_df).reset_index()
@@ -381,7 +379,6 @@ elif section == "Export Batch Prediction":
                         file_name='batch_forecast_export.csv',
                         mime='text/csv'
                     )
-
 
     except Exception as e:
         st.error(f"Failed to process batch predictions: {e}")
