@@ -325,7 +325,7 @@ elif section == "Model Comparison":
         best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='Weighted Score', ascending=False).iloc[0]
         best_model_name = best_row["Model"]
 
-        st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
+        st.success(f"Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
 
 st.markdown("""
 <style>
