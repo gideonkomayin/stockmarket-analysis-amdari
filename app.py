@@ -328,58 +328,55 @@ elif section == "Export Batch Prediction":
 
         st.subheader("📈 ARIMA Price Forecast (Trading Days Only)")
 
-        arima_model_path = MODELS["ARIMA"]["tuned"]["model"]
-        if not os.path.exists(arima_model_path):
-            st.error("ARIMA model file not found.")
-        else:
-            start_date = st.date_input("Forecast Start Date", value=datetime.today().date() + timedelta(days=1))
-            end_date = st.date_input("Forecast End Date", value=start_date + timedelta(days=10))
-
+        def show_arima_forecast(df_stock):
+            """Display trading-day-specific ARIMA forecasts"""
+            st.subheader("📈 ARIMA Price Forecast (Trading Days Only)")
+            
+            # Date selection
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input("Start Date", datetime.today().date() + timedelta(days=1))
+            with col2:
+                end_date = st.date_input("End Date", start_date + timedelta(days=10))
+            
             if start_date >= end_date:
-                st.warning("Start date must be before end date.")
-            else:
-                ticker = yf.Ticker("NVDA")
-                trading_data = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-                forecast_dates = trading_data.index.date
+                return st.warning("Start date must be before end date")
 
-                if len(forecast_dates) == 0:
-                    st.error("No trading days available in the selected range.")
-                else:
-                    forecast_horizon = len(forecast_dates)
-                    last_date = df_stock.index.max().date()
-                    total_steps = (forecast_dates[-1] - last_date).days
+            # Get trading days
+            trading_days = yf.Ticker("NVDA").history(
+                start=start_date,
+                end=end_date + timedelta(days=1)
+            
+            if trading_days.empty:
+                return st.error("No trading days in selected range")
 
-                    if total_steps > 30:
-                        st.warning("⚠️ ARIMA works best for short-term forecasts (≤30 days)")
+            # ARIMA forecast
+            model = ARIMAResults.load(MODELS["ARIMA"]["tuned"]["model"])
+            forecast_steps = (trading_days.index[-1].date() - df_stock.index.max().date()).days
+            forecast = model.get_forecast(steps=forecast_steps)
+            
+            # Format results
+            results = pd.DataFrame({
+                "Date": trading_days.index.date,
+                "Forecast": df_stock.iloc[-1]["NVDA_Close"] * (1 + forecast.predicted_mean[-len(trading_days):].cumsum()),
+                "Actual": trading_days["Close"].values
+            })
 
-                    model = ARIMAResults.load(arima_model_path)
-                    forecast = model.get_forecast(steps=total_steps)
-                    predicted_returns = forecast.predicted_mean[-forecast_horizon:]
-                    price_today = df_stock.iloc[-1]["NVDA_Close"]
-                    predicted_prices = price_today * (1 + predicted_returns.cumsum())
-
-                    forecast_df = pd.DataFrame({
-                        "Date": forecast_dates,
-                        "Forecast Price": predicted_prices.values
-                    })
-
-                    actual_df = trading_data["Close"].rename("Actual Price")
-                    actual_df.index = actual_df.index.date
-                    final_df = forecast_df.set_index("Date").join(actual_df).reset_index()
-
-                    st.dataframe(final_df.style.format({
-                        "Forecast Price": "${:,.2f}",
-                        "Actual Price": "${:,.2f}"
-                    }), use_container_width=True)
-
-                    csv = final_df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        label="📥 Download Forecast CSV",
-                        data=csv,
-                        file_name='batch_forecast_export.csv',
-                        mime='text/csv'
-                    )
-
+            # Display and export
+            st.dataframe(
+                results.style.format({
+                    "Forecast": "${:,.2f}",
+                    "Actual": "${:,.2f}"
+                }),
+                use_container_width=True
+            )
+            
+            st.download_button(
+                "💾 Download Forecast",
+                data=results.to_csv(index=False).encode('utf-8'),
+                file_name="arima_forecast.csv",
+                mime="text/csv"
+            )
     except Exception as e:
         st.error(f"Failed to process batch predictions: {e}")
 
