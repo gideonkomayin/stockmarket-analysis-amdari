@@ -289,13 +289,12 @@ elif section == "Model Comparison":
         model_df = model_df.fillna(0)
 
         # Weighted scoring for classification models
-        weights = {'accuracy': 0.3, 'precision': 0.2, 'recall': 0.1, 'f1': 0.3, 'roc_auc': 0.1}
+        weights = {'accuracy': 0.3, 'precision': 0.2, 'recall': 0.1, 'f1': 0.3}
         model_df["Weighted Score"] = (
             model_df['accuracy'] * weights['accuracy'] +
             model_df['precision'] * weights['precision'] +
             model_df['recall'] * weights['recall'] +
-            model_df['f1'] * weights['f1'] +
-            model_df['roc_auc'] * weights['roc_auc']
+            model_df['f1'] * weights['f1']
         )
 
         st.subheader("Model Metrics Comparison")
