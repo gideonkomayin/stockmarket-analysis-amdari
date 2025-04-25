@@ -282,52 +282,49 @@ elif section == "Export Batch Prediction":
     try:
         model_df = pd.read_csv("model_results.csv")
         model_df = model_df[~model_df["Model"].str.contains("_nf|_cw", na=False)].copy()
+
+        # Convert metric columns to numeric
+        metrics = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
+        model_df[metrics] = model_df[metrics].apply(pd.to_numeric, errors='coerce')
         model_df = model_df.fillna(0)
 
-        # Ensure numeric types
-        metrics_to_convert = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
-        model_df[metrics_to_convert] = model_df[metrics_to_convert].apply(pd.to_numeric, errors='coerce')
-
         # Weighted scoring for classification models
-        weights = {'accuracy': 0.35, 'precision': 0.25, 'recall': 0.2, 'f1': 0.2}
-        model_df["weighted_score"] = (
+        weights = {'accuracy': 0.3, 'precision': 0.2, 'recall': 0.1, 'f1': 0.3, 'roc_auc': 0.1}
+        model_df["Weighted Score"] = (
             model_df['accuracy'] * weights['accuracy'] +
             model_df['precision'] * weights['precision'] +
             model_df['recall'] * weights['recall'] +
-            model_df['f1'] * weights['f1']
+            model_df['f1'] * weights['f1'] +
+            model_df['roc_auc'] * weights['roc_auc']
         )
 
-        best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='weighted_score', ascending=False).iloc[0]
-        best_model_name = best_row["Model"]
-
-        st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['weighted_score']:.4f}")
-
-        st.subheader("📊 Classification Model Comparison")
+        st.subheader("📊 Model Metrics Comparison")
         st.markdown("""
-        **🔍 How Weighted Scoring Works**
-        
-        To determine the best classification model, we compute a **weighted score** based on:
-        - **Accuracy (35%)** – overall correct predictions
-        - **Precision (25%)** – correctness when predicting positives
-        - **Recall (20%)** – ability to find all relevant positives
-        - **F1 Score (20%)** – balance between precision and recall
+        **Weighted Score Calculation:**
+        - Accuracy × 0.3
+        - Precision × 0.2
+        - Recall × 0.1
+        - F1 Score × 0.3
+        - ROC AUC × 0.1
 
-        This reflects our priority for overall reliability and fewer false positives, which is crucial in financial forecasting.
+        These weights emphasize **F1 Score** and **Accuracy** as they balance precision and recall, crucial for financial decision-making.
         """)
 
-        metric_cols = ["Model", "accuracy", "precision", "recall", "f1", "roc_auc", "weighted_score"]
-        display_df = model_df[metric_cols].copy().sort_values("weighted_score", ascending=False)
-        st.dataframe(display_df.style.format("{:.4f}"), use_container_width=True)
+        st.dataframe(model_df.style.format({
+            'accuracy': "{:.4f}", 'precision': "{:.4f}", 'recall': "{:.4f}",
+            'f1': "{:.4f}", 'roc_auc': "{:.4f}", 'Weighted Score': "{:.4f}"
+        }), use_container_width=True)
 
-        import plotly.express as px
-        fig = px.bar(display_df, x="Model", y="weighted_score", title="📊 Weighted Scores by Model", text_auto=True, color="weighted_score")
+        st.subheader("📈 Performance Chart")
+        fig = px.bar(model_df.sort_values("Weighted Score", ascending=True),
+                     x="Weighted Score", y="Model", orientation='h',
+                     title="Model Weighted Scores")
         st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown(f"""
-        ### 🏆 Best Classification Model:
-        **{best_model_name}**  
-        with a **weighted score of {best_row['weighted_score']:.4f}**, prioritizing accuracy and precision.
-        """)
+        best_row = model_df[~model_df['Model'].str.contains("ARIMA")].sort_values(by='Weighted Score', ascending=False).iloc[0]
+        best_model_name = best_row["Model"]
+
+        st.success(f"✅ Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
 
         st.subheader("📈 ARIMA Price Forecast")
 
@@ -359,6 +356,7 @@ elif section == "Export Batch Prediction":
                 })
                 forecast_df["Date"] = forecast_df["Date"].dt.date
 
+                # Fetch actual prices for each forecast date
                 ticker = yf.Ticker("NVDA")
                 actual_prices = []
                 for date in forecast_df["Date"]:
@@ -378,7 +376,7 @@ elif section == "Export Batch Prediction":
 
                 csv = forecast_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="📥 Download Forecast CSV",
+                    label="📅 Download Forecast CSV",
                     data=csv,
                     file_name='batch_forecast_export.csv',
                     mime='text/csv'
