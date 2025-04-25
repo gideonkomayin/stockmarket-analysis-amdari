@@ -5,7 +5,7 @@ This project implements a sophisticated stock market analysis system using machi
 
 **Live Demo:** [Stock Market Analysis Dashboard](https://stockmarket-analysis-amdari.streamlit.app/)
 
-![Price Trends](lstm_base_history.png)
+![Price Trends](stock_price_trends_QUBT_NVDA_S&P_500.png)
 *Figure 1: Price trends comparison between NVDA, QUBT, and S&P 500 (2010-2024)*
 
 ## Authors
@@ -225,16 +225,16 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
    - Tuned LSTM model showed improved accuracy over base model
    - Particularly effective in capturing long-term trends and patterns
 
-![LSTM Confusion Matrix](cm_lstm_tuned.png)
-*Figure 4: LSTM model confusion matrix showing prediction accuracy*
+![Model Comparison](cm_models_comparison.png)
+*Figure 4: Confusion matrix comparison across all implemented models*
 
 2. ARIMA Models:
    - Effective in short-term price forecasting
    - Demonstrated good performance in capturing seasonal patterns
    - Tuned ARIMA model showed significant improvement in prediction accuracy
 
-![ARIMA Forecast](arima_forecast_tuned.png)
-*Figure 5: ARIMA model price forecasting results*
+![NVDA Fundamental Analysis](NVDA_fundamental_analysis.png)
+*Figure 5: NVIDIA fundamental analysis and key metrics*
 
 3. XGBoost Models:
    - Excellent performance in feature importance analysis
