@@ -5,7 +5,7 @@ This project implements a sophisticated stock market analysis system using machi
 
 **Live Demo:** [Stock Market Analysis Dashboard](https://stockmarket-analysis-amdari.streamlit.app/)
 
-![Price Trends](nvidia_stockmarketanalysis.ipynb)
+![Price Trends](lstm_base_history.png)
 *Figure 1: Price trends comparison between NVDA, QUBT, and S&P 500 (2010-2024)*
 
 ## Authors
@@ -216,7 +216,7 @@ The weighted scoring system emphasizes F1 Score and Accuracy as they provide a b
 - Integration of multiple data sources (market data, financial metrics, technical indicators) improved prediction accuracy
 - Real-time market data integration through yfinance provided up-to-date analysis capabilities
 
-![Daily Returns](nvidia_stockmarketanalysis.ipynb)
+![Daily Returns](lstm_base_cm.png)
 *Figure 3: Daily returns comparison between NVDA, QUBT, and S&P 500*
 
 ### Model Performance Findings
