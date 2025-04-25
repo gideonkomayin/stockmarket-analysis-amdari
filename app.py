@@ -327,6 +327,9 @@ elif section == "Model Comparison":
 
         st.success(f"Best performing classification model: **{best_model_name}** with score {best_row['Weighted Score']:.4f}")
 
+  except Exception as e:
+        st.error(f"Failed to process batch predictions: {e}")
+        
 st.markdown("""
 <style>
     .stMetric {
